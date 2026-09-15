@@ -1,6 +1,6 @@
 # Artea
 
-The Artea curve is a cubic Bézier curve whose control points are constructed to minimize its curvature peak. This optimization is defined by a superellipse with $n=4/3$. The construction first normalizes the tangent geometry to right angles while preserving the ratio of the tangent lengths, performs the optimization in this normalized geometry, and then applies the affine inclination.
+The Artea curve is a cubic Bézier curve whose control points are constructed to minimize its curvature peak. The optimization is geometrically defined by a superellipse with $n=4/3$. The construction first normalizes the tangent geometry to right angles while preserving the ratio of the tangent lengths, performs the optimization in this normalized geometry, and then applies the affine inclination.
 
 The Artea spline generalizes the Artea curve to a sequence of cubic Bézier segments with $G^2$ continuity. Unlike the local Artea curve, the control parameters of the individual segments are globally coupled, so the curvature remains continuous across segment boundaries. The local superellipse construction is therefore replaced by a global parameterization that preserves the same geometric principle while enforcing $G^2$ continuity.
 
