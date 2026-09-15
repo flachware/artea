@@ -7,7 +7,10 @@ The Artea spline generalizes the Artea curve to a sequence of cubic Bézier segm
 ## Cubic Bézier curve
 
 $$
-\mathbf{B}(t) = \sum_{i=0}^{3} \binom{3}{i}(1-t)^{3-i}t^i\mathbf{P}_i
+B(t) =
+\sum_{i=0}^{3}
+\binom{3}{i}
+(1-t)^{3-i} t^i P_i
 $$
 
 ## Artea curve
@@ -15,13 +18,13 @@ $$
 The endpoints and the tangent intersection point are given:
 
 $$
-\mathbf{P}_0,\ \mathbf{P}_3,\ \mathbf{T}
+P_0,\ P_3,\ T
 $$
 
 The tangent lengths are:
 
 $$
-A = \lVert\mathbf{T}-\mathbf{P}_0\rVert,\qquad B = \lVert\mathbf{T}-\mathbf{P}_3\rVert
+A = \lVert T-P_0\rVert,\qquad B = \lVert T-P_3\rVert
 $$
 
 The control parameter is:
@@ -33,7 +36,7 @@ $$
 The inner control points are:
 
 $$
-\mathbf{P}_1=\mathbf{P}_0+p(\mathbf{T}-\mathbf{P}_0),\qquad \mathbf{P}_2=\mathbf{P}_3+p(\mathbf{T}-\mathbf{P}_3)
+P_1=P_0+p(T-P_0),\qquad P_2=P_3+p(T-P_3)
 $$
 
 ## Artea spline
@@ -41,19 +44,19 @@ $$
 Each segment $k$ is a cubic Bézier curve:
 
 $$
-B_k(t) = \sum_{i=0}^{3} \binom{3}{i}(1-t)^{3-i}t^i\mathbf{P}_{k,i},\qquad 0\leq t\leq1
+B_k(t) = \sum_{i=0}^{3} \binom{3}{i}(1-t)^{3-i}t^i P_{k,i},\qquad 0 \leq t \leq 1
 $$
 
 The endpoints and the tangent intersection point are given:
 
 $$
-\mathbf{P}_{k,0},\ \mathbf{P}_{k,3},\ \mathbf{T}_k
+P_{k,0},\ P_{k,3},\ T_k
 $$
 
 The tangent lengths are:
 
 $$
-A_k = \lVert\mathbf{T}_k-\mathbf{P}_{k,0}\rVert,\qquad B_k = \lVert\mathbf{T}_k-\mathbf{P}_{k,3}\rVert
+A_k = \lVert T_k - P_{k,0} \rVert,\qquad B_k = \lVert T_k - P_{k,3} \rVert
 $$
 
 For $G^2$ continuity, define:
@@ -65,7 +68,7 @@ $$
 The continuity condition is:
 
 $$
-u_{k+1} = u_k\frac{A_kA_{k+1}^2}{B_k^2B_{k+1}}
+u_{k+1} = u_k\frac{A_k A_{k+1}^2}{B_k^2 B_{k+1}}
 $$
 
 The control parameter is given by:
@@ -77,7 +80,7 @@ $$
 Finally, the inner control points are:
 
 $$
-\mathbf{P}_{k,1}=\mathbf{P}_{k,0}+p_k(\mathbf{T}_k-\mathbf{P}_{k,0}),\qquad \mathbf{P}_{k,2}=\mathbf{P}_{k,3}+p_k(\mathbf{T}_k-\mathbf{P}_{k,3})
+P_{k,1} = P_{k,0} + p_k(T_k-P_{k,0}),\qquad P_{k,2} = P_{k,3} + p_k(T_k-P_{k,3})
 $$
 
 ---
