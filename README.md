@@ -59,3 +59,7 @@ $$p_k = \frac{2}{1+\sqrt{1+4u_k}}$$
 Finally, the inner control points are:
 
 $$P_{k,1} = P_{k,0} + p_k(T_k-P_{k,0}),\qquad P_{k,2} = P_{k,3} + p_k(T_k-P_{k,3})$$
+
+---
+
+Copyright © 2026 Johannes Krtek
