@@ -1,5 +1,5 @@
 # Artea
-The Artea curve is a cubic Bézier curve whose control points are constructed to minimize the maximum curvature. The construction first normalizes the tangent-length geometry, performs the optimization in this normalized configuration, and then applies the affine inclination. The resulting control parameters lie on a $4/3$ superellipse in control space, where the $3/4$ power maps the linear partition of the tangent lengths to this superelliptic control geometry.
+The Artea curve is a cubic Bézier curve whose control points are constructed to minimize the maximum curvature. The construction first normalizes the tangent geometry to a right angle while preserving the tangent lengths, performs the optimization in this normalized geometry, and then applies the affine inclination. The resulting control parameters lie on a $4/3$ superellipse in control space, where the $3/4$ power maps the linear partition of the tangent lengths to this superelliptic control geometry.
 
 The Artea spline extends the Artea curve to a sequence of cubic Bézier segments with $G^2$ continuity. Unlike the local Artea curve, the control parameters of the individual segments are globally coupled, so the curvature remains continuous across segment boundaries. The local $3/4$ construction is therefore replaced by a global parameterization that preserves the same geometric principle while enforcing $G^2$ continuity.
 
@@ -24,7 +24,7 @@ $$A = \lVert T-P_0\rVert,\qquad B = \lVert T-P_3\rVert$$
 
 The control parameter is:
 
-$$p = 1-\gamma\left(\frac{2A}{A+B}\right)^{3/4},\qquad \gamma=\frac{7-4\sqrt{2}}{3}$$
+$$p = 1-(1-\gamma)\left(\frac{2A}{A+B}\right)^{3/4},\qquad \gamma=\frac{4(\sqrt{2}-1)}{3}$$
 
 The inner control points are:
 
@@ -59,7 +59,3 @@ $$p_k = \frac{2}{1+\sqrt{1+4u_k}}$$
 Finally, the inner control points are:
 
 $$P_{k,1} = P_{k,0} + p_k(T_k-P_{k,0}),\qquad P_{k,2} = P_{k,3} + p_k(T_k-P_{k,3})$$
-
----
-
-Copyright © 2026 Johannes Krtek
