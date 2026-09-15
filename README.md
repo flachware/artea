@@ -27,16 +27,40 @@ $$
 A = \lVert T-P_0\rVert,\qquad B = \lVert T-P_3\rVert
 $$
 
-The control parameter is:
+The curvature optimization is defined by the superellipse:
 
 $$
-p = 1-(1-\gamma)\left(\frac{2A}{A+B}\right)^{3/4},\qquad \gamma=\frac{4(\sqrt{2}-1)}{3}
+\left|\frac{x}{a}\right|^{4/3}
++
+\left|\frac{y}{a}\right|^{4/3}
+=1
+$$
+
+with
+
+$$
+x=1-p,\qquad
+y=(1-\gamma)\left(\frac{2B}{A+B}\right)^{3/4},\qquad
+a=2^{3/4}(1-\gamma)
+$$
+
+where
+
+$$
+\gamma=\frac{4(\sqrt{2}-1)}{3}
+$$
+
+After rearrangement, the control parameter is:
+
+$$
+p=1-(1-\gamma)\left(\frac{2A}{A+B}\right)^{3/4}
 $$
 
 The inner control points are:
 
 $$
-P_1=P_0+p(T-P_0),\qquad P_2=P_3+p(T-P_3)
+P_1=P_0+p(T-P_0),\qquad
+P_2=P_3+p(T-P_3)
 $$
 
 ## Artea spline
