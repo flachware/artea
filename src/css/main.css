@@ -1,0 +1,16 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.editor {
+  width: 100vw;
+  height: 100vh;
+}
+
+.canvas {
+  display: block;
+}

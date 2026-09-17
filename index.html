@@ -3,8 +3,28 @@
   <head>
     <meta charset="utf-8">
     <title>Artea curve and spline</title>
+    <link rel="stylesheet" href="/src/css/main.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "alpinejs": "https://unpkg.com/alpinejs@3.17.3/dist/module.esm.js"
+        }
+      }
+    </script>
+    <script type="module" src="/src/js/main.js"></script>
   </head>
   <body>
-    <h1>Artea curve and spline</h1>
+    <div
+      x-data="editor"
+      class="editor">
+      <svg
+        x-data="canvas"
+        @click="edit"
+        :width="width"
+        :height="height"
+        :viewBox="viewBox"
+        class="canvas">
+      </svg>
+    </div>
   </body>
 </html>
