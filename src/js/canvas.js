@@ -4,6 +4,8 @@ const SVG_NS = 'http://www.w3.org/2000/svg'
 const CURVE_PULL = 0.55
 const DRAG_THRESHOLD = 5
 const TANGENT_SNAP_THRESHOLD = 10
+const SMOOTH_NODE_SIZE = 10
+const CORNER_NODE_SIZE = 8
 
 Alpine.data('canvas', () => ({
   width: window.innerWidth,
@@ -15,7 +17,6 @@ Alpine.data('canvas', () => ({
   selectedSegmentHandle: null,
   selectedCurveHandle: null,
   segmentHighlight: null,
-  nodeHandleSize: 10,
 
   get viewBox() {
     return `0 0 ${this.width} ${this.height}`
@@ -111,8 +112,6 @@ Alpine.data('canvas', () => ({
   addNodeHandle(path, node) {
     const nodeHandle = document.createElementNS(SVG_NS, 'rect')
 
-    nodeHandle.setAttribute('width', this.nodeHandleSize)
-    nodeHandle.setAttribute('height', this.nodeHandleSize)
     nodeHandle.setAttribute('fill', 'none')
     nodeHandle.setAttribute('stroke', 'black')
     nodeHandle.setAttribute('stroke-width', '1.1')
@@ -156,12 +155,16 @@ Alpine.data('canvas', () => ({
   },
 
   updateNodeHandle(nodeHandle, node) {
-    nodeHandle.setAttribute('x', node.x - this.nodeHandleSize / 2)
-    nodeHandle.setAttribute('y', node.y - this.nodeHandleSize / 2)
+    const size = node.smooth ? SMOOTH_NODE_SIZE : CORNER_NODE_SIZE
+
+    nodeHandle.setAttribute('width', size)
+    nodeHandle.setAttribute('height', size)
+    nodeHandle.setAttribute('x', node.x - size / 2)
+    nodeHandle.setAttribute('y', node.y - size / 2)
   },
 
   updateNodeHandleShape(nodeHandle, node) {
-    const radius = node.smooth ? this.nodeHandleSize / 2 : 0
+    const radius = node.smooth ? SMOOTH_NODE_SIZE / 2 : 0
 
     nodeHandle.setAttribute('rx', radius)
     nodeHandle.setAttribute('ry', radius)
@@ -585,6 +588,7 @@ Alpine.data('canvas', () => ({
 
     node.smooth = !node.smooth
 
+    this.updateNodeHandle(nodeHandle, node)
     this.updateNodeHandleShape(nodeHandle, node)
 
     if (node.smooth) {
