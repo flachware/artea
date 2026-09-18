@@ -1,12 +1,16 @@
 import Alpine from 'alpinejs'
 
+const SVG_NS = 'http://www.w3.org/2000/svg'
+
 Alpine.data('canvas', () => ({
   width: window.innerWidth,
   height: window.innerHeight,
 
-  polylines: [],
-  selectedPolyline: null,
-  selectedHandle: null,
+  paths: [],
+  selectedPath: null,
+  selectedPointHandle: null,
+  selectedSegmentHandle: null,
+  segmentHighlight: null,
 
   get viewBox() {
     return `0 0 ${this.width} ${this.height}`
@@ -21,19 +25,17 @@ Alpine.data('canvas', () => ({
 
   edit(event) {
     this.deselectPoint()
+    this.deselectSegment()
 
     if (!event.ctrlKey && !event.metaKey) {
-      this.selectedPolyline = null
+      this.selectedPath = null
       return
     }
 
-    let polyline = this.selectedPolyline
+    let path = this.selectedPath
 
-    if (!polyline) {
-      const element = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'path'
-      )
+    if (!path) {
+      const element = document.createElementNS(SVG_NS, 'path')
 
       element.setAttribute('fill', 'none')
       element.setAttribute('stroke', 'black')
@@ -41,15 +43,16 @@ Alpine.data('canvas', () => ({
 
       this.$el.appendChild(element)
 
-      polyline = {
+      path = {
         element,
         points: [],
-        handles: [],
+        pointHandles: [],
+        segmentHandles: [],
         closed: false
       }
 
-      this.polylines.push(polyline)
-      this.selectedPolyline = polyline
+      this.paths.push(path)
+      this.selectedPath = path
     }
 
     const point = {
@@ -57,62 +60,107 @@ Alpine.data('canvas', () => ({
       y: event.clientY
     }
 
-    polyline.points.push(point)
+    const previousPoint = path.points[path.points.length - 1]
 
-    this.updatePolyline(polyline)
-    this.addPointHandle(polyline, point)
+    path.points.push(point)
+
+    this.updatePath(path)
+
+    if (previousPoint) {
+      this.addSegmentHandle(path, previousPoint, point)
+    }
+
+    this.addPointHandle(path, point)
   },
 
-  updatePolyline(polyline) {
-    polyline.element.setAttribute(
+  updatePath(path) {
+    path.element.setAttribute(
       'd',
-      polyline.points
+      path.points
         .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`)
         .join(' ')
     )
   },
 
-  addPointHandle(polyline, point) {
-    const handle = document.createElementNS(
-      'http://www.w3.org/2000/svg',
-      'circle'
-    )
+  addPointHandle(path, point) {
+    const pointHandle = document.createElementNS(SVG_NS, 'circle')
 
-    handle.setAttribute('cx', point.x)
-    handle.setAttribute('cy', point.y)
-    handle.setAttribute('r', 5)
-    handle.setAttribute('fill', 'none')
-    handle.setAttribute('stroke', 'black')
-    handle.setAttribute('stroke-width', '1.1')
-    handle.setAttribute('pointer-events', 'all')
+    pointHandle.setAttribute('cx', point.x)
+    pointHandle.setAttribute('cy', point.y)
+    pointHandle.setAttribute('r', 5)
+    pointHandle.setAttribute('fill', 'none')
+    pointHandle.setAttribute('stroke', 'black')
+    pointHandle.setAttribute('stroke-width', '1.1')
+    pointHandle.setAttribute('pointer-events', 'all')
 
-    this.$el.appendChild(handle)
+    this.$el.appendChild(pointHandle)
 
-    polyline.handles.push(handle)
+    path.pointHandles.push(pointHandle)
 
-    handle.addEventListener('mousedown', (event) => {
+    pointHandle.addEventListener('mousedown', (event) => {
       event.stopPropagation()
 
-      const isFirstHandle = handle === polyline.handles[0]
-      const isOpenAndSelected = !polyline.closed &&
-        Alpine.raw(this.selectedPolyline) === polyline
+      const isFirstHandle = pointHandle === path.pointHandles[0]
+      const isOpenAndSelected = !path.closed &&
+        Alpine.raw(this.selectedPath) === path
 
       if (isFirstHandle && isOpenAndSelected && (event.ctrlKey || event.metaKey)) {
-        this.closePolyline(polyline)
+        this.closePath(path)
         return
       }
 
-      this.selectPoint(handle)
-      this.dragPoint(polyline, point, handle, event)
+      this.selectPoint(pointHandle)
+      this.dragPoint(path, point, pointHandle, event)
     })
 
-    if (polyline.points.length > 1) {
+    if (path.pointHandles.length > 1) {
       // Keep first handle on top
-      this.$el.appendChild(polyline.handles[0])
+      this.$el.appendChild(path.pointHandles[0])
     }
   },
 
-  dragPoint(polyline, point, handle, startEvent) {
+  addSegmentHandle(path, pointA, pointB) {
+    const segmentHandle = document.createElementNS(SVG_NS, 'line')
+
+    segmentHandle.setAttribute('x1', pointA.x)
+    segmentHandle.setAttribute('y1', pointA.y)
+    segmentHandle.setAttribute('x2', pointB.x)
+    segmentHandle.setAttribute('y2', pointB.y)
+    segmentHandle.setAttribute('stroke', 'transparent')
+    segmentHandle.setAttribute('stroke-width', '10')
+    segmentHandle.setAttribute('pointer-events', 'all')
+
+    this.$el.appendChild(segmentHandle)
+
+    path.segmentHandles.push(segmentHandle)
+
+    segmentHandle.addEventListener('mousedown', (event) => {
+      event.stopPropagation()
+
+      this.selectSegment(segmentHandle)
+    })
+
+    // Keep point handles above segment handles
+    path.pointHandles.forEach((pointHandle) => {
+      this.$el.appendChild(pointHandle)
+    })
+  },
+
+  updateSegmentHandles(path) {
+    path.segmentHandles.forEach((segmentHandle, i) => {
+      const pointA = path.points[i]
+      const pointB = path.points[i + 1]
+
+      segmentHandle.setAttribute('x1', pointA.x)
+      segmentHandle.setAttribute('y1', pointA.y)
+      segmentHandle.setAttribute('x2', pointB.x)
+      segmentHandle.setAttribute('y2', pointB.y)
+    })
+
+    this.updateSegmentHighlight()
+  },
+
+  dragPoint(path, point, pointHandle, startEvent) {
     const startX = startEvent.clientX
     const startY = startEvent.clientY
     const threshold = 5
@@ -134,10 +182,11 @@ Alpine.data('canvas', () => ({
       point.x = event.clientX
       point.y = event.clientY
 
-      handle.setAttribute('cx', point.x)
-      handle.setAttribute('cy', point.y)
+      pointHandle.setAttribute('cx', point.x)
+      pointHandle.setAttribute('cy', point.y)
 
-      this.updatePolyline(polyline)
+      this.updatePath(path)
+      this.updateSegmentHandles(path)
     }
 
     const onMouseUp = () => {
@@ -149,37 +198,85 @@ Alpine.data('canvas', () => ({
     window.addEventListener('mouseup', onMouseUp)
   },
 
-  selectPoint(handle) {
+  selectPoint(pointHandle) {
+    this.deselectSegment()
     this.deselectPoint()
 
-    this.selectedHandle = handle
-    handle.setAttribute('fill', 'black')
+    this.selectedPointHandle = pointHandle
+    pointHandle.setAttribute('fill', 'black')
   },
 
   deselectPoint() {
-    if (!this.selectedHandle) {
+    if (!this.selectedPointHandle) {
       return
     }
 
-    this.selectedHandle.setAttribute('fill', 'none')
-    this.selectedHandle = null
+    this.selectedPointHandle.setAttribute('fill', 'none')
+    this.selectedPointHandle = null
   },
 
-  closePolyline(polyline) {
-    if (polyline.closed) {
+  selectSegment(segmentHandle) {
+    this.deselectPoint()
+    this.deselectSegment()
+
+    this.selectedSegmentHandle = segmentHandle
+
+    if (!this.segmentHighlight) {
+      this.segmentHighlight = document.createElementNS(SVG_NS, 'line')
+      this.segmentHighlight.setAttribute('stroke', 'black')
+      this.segmentHighlight.setAttribute('stroke-width', '3')
+      this.segmentHighlight.setAttribute('pointer-events', 'none')
+    }
+
+    this.updateSegmentHighlight()
+
+    segmentHandle.parentNode.insertBefore(this.segmentHighlight, segmentHandle)
+  },
+
+  updateSegmentHighlight() {
+    if (!this.selectedSegmentHandle) {
       return
     }
 
-    if (polyline.points.length < 3) {
+    const segmentHandle = this.selectedSegmentHandle
+
+    this.segmentHighlight.setAttribute('x1', segmentHandle.getAttribute('x1'))
+    this.segmentHighlight.setAttribute('y1', segmentHandle.getAttribute('y1'))
+    this.segmentHighlight.setAttribute('x2', segmentHandle.getAttribute('x2'))
+    this.segmentHighlight.setAttribute('y2', segmentHandle.getAttribute('y2'))
+  },
+
+  deselectSegment() {
+    if (!this.selectedSegmentHandle) {
       return
     }
 
-    polyline.closed = true
+    if (this.segmentHighlight.parentNode) {
+      this.segmentHighlight.parentNode.removeChild(this.segmentHighlight)
+    }
 
-    polyline.points.push(polyline.points[0])
+    this.selectedSegmentHandle = null
+  },
 
-    this.updatePolyline(polyline)
+  closePath(path) {
+    if (path.closed) {
+      return
+    }
 
-    this.selectedPolyline = null
+    if (path.points.length < 3) {
+      return
+    }
+
+    path.closed = true
+
+    const lastPoint = path.points[path.points.length - 1]
+    const firstPoint = path.points[0]
+
+    path.points.push(firstPoint)
+
+    this.updatePath(path)
+    this.addSegmentHandle(path, lastPoint, firstPoint)
+
+    this.selectedPath = null
   }
 }))
