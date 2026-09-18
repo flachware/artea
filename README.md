@@ -53,7 +53,7 @@ $$
 After rearrangement, the control parameter is:
 
 $$
-p=1-(1-\gamma)\left(\frac{2A}{A+B}\right)^{3/4}
+p=1-(1-\gamma)\left(\frac{2B}{A+B}\right)^{3/4}
 $$
 
 The inner control points are:
