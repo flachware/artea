@@ -32,7 +32,7 @@ Alpine.data('canvas', () => ({
     if (!polyline) {
       const element = document.createElementNS(
         'http://www.w3.org/2000/svg',
-        'polyline'
+        'path'
       )
 
       element.setAttribute('fill', 'none')
@@ -65,9 +65,9 @@ Alpine.data('canvas', () => ({
 
   updatePolyline(polyline) {
     polyline.element.setAttribute(
-      'points',
+      'd',
       polyline.points
-        .map(p => `${p.x},${p.y}`)
+        .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`)
         .join(' ')
     )
   },
