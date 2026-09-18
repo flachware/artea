@@ -19,7 +19,7 @@
       class="editor">
       <svg
         x-data="canvas"
-        @click="edit($event)"
+        @mousedown="edit($event)"
         :width="width"
         :height="height"
         :viewBox="viewBox"
