@@ -1,8 +1,12 @@
-const CURVE_PULL = 0.55
+import { elliptic } from './elliptic.js'
+import { artea } from './artea.js'
+
 const SNAP_THRESHOLD = 10
+const CURVE_MODE = { elliptic, artea }
 
 class Path {
-  constructor() {
+  constructor(scene) {
+    this.scene = scene
     this.nodes = []
     this.selected = false
     this.closed = false
@@ -185,31 +189,27 @@ class Path {
 
     const touching = segments
       .filter((segment) => segment.controlPoint && (segment.startNode === node || segment.endNode === node))
-      .map((segment) => ({
-        segment,
-        ownTangent: this.getTangent(node, segment),
-        farNode: segment.startNode === node ? segment.endNode : segment.startNode
-      }))
+      .map((segment) => {
+        const farNode = segment.startNode === node ? segment.endNode : segment.startNode
+
+        return {
+          segment,
+          ownTangent: this.getTangent(node, segment),
+          farNode,
+          farTangent: this.getTangent(farNode, segment)
+        }
+      })
 
     node.x = x
     node.y = y
 
-    touching.forEach(({ segment, ownTangent, farNode }) => {
-      const farSegment = segments.find((s) =>
-        s !== segment && (s.startNode === farNode || s.endNode === farNode)
-      )
+    touching.forEach(({ segment, ownTangent, farNode, farTangent }) => {
+      const point = this.intersectLines(node, ownTangent.dir, farNode, farTangent.dir)
 
-      if (farNode.smooth === 'smooth' && farSegment) {
-        const farTangent = this.getTangent(farNode, farSegment)
-        const fixedDir = { x: -farTangent.dir.x, y: -farTangent.dir.y }
-
-        const point = this.intersectLines(farNode, fixedDir, node, ownTangent.dir)
-
-        if (point) {
-          segment.controlPoint.x = point.x
-          segment.controlPoint.y = point.y
-          return
-        }
+      if (point) {
+        segment.controlPoint.x = point.x
+        segment.controlPoint.y = point.y
+        return
       }
 
       this.setControlPoint(segment.controlPoint, node, ownTangent.dir, ownTangent.dist)
@@ -283,15 +283,17 @@ class Path {
   }
 
   resolve(p0, p1, p2) {
+    const speed = this.scene.speed(p0, p1, p2)
+
     return {
       p0,
       cp1: {
-        x: p0.x + CURVE_PULL * (p1.x - p0.x),
-        y: p0.y + CURVE_PULL * (p1.y - p0.y)
+        x: p0.x + speed * (p1.x - p0.x),
+        y: p0.y + speed * (p1.y - p0.y)
       },
       cp2: {
-        x: p2.x + CURVE_PULL * (p1.x - p2.x),
-        y: p2.y + CURVE_PULL * (p1.y - p2.y)
+        x: p2.x + speed * (p1.x - p2.x),
+        y: p2.y + speed * (p1.y - p2.y)
       },
       p3: p2
     }
@@ -299,12 +301,17 @@ class Path {
 }
 
 export class Scene {
-  constructor() {
+  constructor(curveMode = 'elliptic') {
     this.paths = []
+    this.curveMode = curveMode
+  }
+
+  speed(p0, p1, p2) {
+    return CURVE_MODE[this.curveMode](p0, p1, p2)
   }
 
   addPath() {
-    const path = new Path()
+    const path = new Path(this)
 
     this.paths.push(path)
 

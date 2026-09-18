@@ -2,12 +2,13 @@ import { Scene } from './scene.js'
 import { Renderer } from './renderer.js'
 
 const DOUBLE_CLICK_TIMEOUT = 400
+const CURVE_MODE = 'artea'
 
 export class Editor {
   constructor(selector) {
     const container = document.querySelector(selector)
 
-    this.scene = new Scene()
+    this.scene = new Scene(CURVE_MODE)
     this.renderer = new Renderer(container)
     this.currentPath = null
     this.selectedNode = null
