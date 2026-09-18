@@ -6,6 +6,7 @@ Alpine.data('canvas', () => ({
 
   polylines: [],
   selectedPolyline: null,
+  selectedHandle: null,
 
   get viewBox() {
     return `0 0 ${this.width} ${this.height}`
@@ -19,6 +20,8 @@ Alpine.data('canvas', () => ({
   },
 
   edit(event) {
+    this.deselectPoint()
+
     if (!event.ctrlKey && !event.metaKey) {
       this.selectedPolyline = null
       return
@@ -87,20 +90,79 @@ Alpine.data('canvas', () => ({
 
     polyline.handles.push(handle)
 
-    if (polyline.points.length === 1) {
-      handle.addEventListener('mousedown', (event) => {
-        event.stopPropagation()
+    handle.addEventListener('mousedown', (event) => {
+      event.stopPropagation()
 
-        if (Alpine.raw(this.selectedPolyline) !== polyline) {
-          return
-        }
+      const isFirstHandle = handle === polyline.handles[0]
+      const isOpenAndSelected = !polyline.closed &&
+        Alpine.raw(this.selectedPolyline) === polyline
 
+      if (isFirstHandle && isOpenAndSelected && (event.ctrlKey || event.metaKey)) {
         this.closePolyline(polyline)
-      })
-    } else {
+        return
+      }
+
+      this.selectPoint(handle)
+      this.dragPoint(polyline, point, handle, event)
+    })
+
+    if (polyline.points.length > 1) {
       // Keep first handle on top
       this.$el.appendChild(polyline.handles[0])
     }
+  },
+
+  dragPoint(polyline, point, handle, startEvent) {
+    const startX = startEvent.clientX
+    const startY = startEvent.clientY
+    const threshold = 5
+
+    let dragging = false
+
+    const onMouseMove = (event) => {
+      if (!dragging) {
+        const dx = event.clientX - startX
+        const dy = event.clientY - startY
+
+        if (Math.hypot(dx, dy) < threshold) {
+          return
+        }
+
+        dragging = true
+      }
+
+      point.x = event.clientX
+      point.y = event.clientY
+
+      handle.setAttribute('cx', point.x)
+      handle.setAttribute('cy', point.y)
+
+      this.updatePolyline(polyline)
+    }
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  },
+
+  selectPoint(handle) {
+    this.deselectPoint()
+
+    this.selectedHandle = handle
+    handle.setAttribute('fill', 'black')
+  },
+
+  deselectPoint() {
+    if (!this.selectedHandle) {
+      return
+    }
+
+    this.selectedHandle.setAttribute('fill', 'none')
+    this.selectedHandle = null
   },
 
   closePolyline(polyline) {
@@ -114,12 +176,7 @@ Alpine.data('canvas', () => ({
 
     polyline.closed = true
 
-    const firstPoint = polyline.points[0]
-
-    polyline.points.push({
-      x: firstPoint.x,
-      y: firstPoint.y
-    })
+    polyline.points.push(polyline.points[0])
 
     this.updatePolyline(polyline)
 
