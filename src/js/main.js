@@ -1,8 +1,3 @@
-import Alpine from 'alpinejs'
-import './editor.js'
-import './canvas.js'
+import { Editor } from './editor.js'
 
-
-window.Alpine = Alpine
-
-Alpine.start()
+new Editor('.editor')
