@@ -328,15 +328,17 @@ function constrainSegment(segment, directions) {
   /*
    * Nur End-Node smooth:
    *
-   * Die Richtung ist vom End-Node nach außen,
-   * also ebenfalls auf der korrekten Seite der
-   * Tangente.
+   * T liegt hinter dem End-Node, also in der
+   * entgegengesetzten Richtung der gespeicherten
+   * Vorwärtsrichtung.
    */
   if (endSmooth) {
+    const direction = directions.get(segment.endNode)
+
     preserveHandlePosition(
       segment,
       segment.endNode,
-      directions.get(segment.endNode)
+      direction && mul(direction, -1)
     )
   }
 }
