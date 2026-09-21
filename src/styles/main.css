@@ -1,0 +1,29 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.editor {
+  width: 100vw;
+  height: 100vh;
+}
+
+.canvas {
+  display: block;
+}
+
+.artea-toggle {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+.spline-toggle {
+  position: absolute;
+  top: 40px;
+  right: 20px;
+}
+

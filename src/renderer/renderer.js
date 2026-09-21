@@ -1,10 +1,11 @@
 import { SVG_NS } from './svg.js'
 import { curves } from './curves.js'
-import { spline } from './spline.js'
+import { spline as arteaSpline } from '../artea/spline.js'
+import { spline as circleSpline } from '../circle/spline.js'
 import { renderNodeHandles, renderSegmentHandles, renderOffCurveHandles } from './handles.js'
 import { renderTangents } from './tangents.js'
 
-const PATH_MODE = { curve: curves, spline }
+const SPLINE_MODE = { elliptic: circleSpline, artea: arteaSpline }
 
 export class Renderer {
   constructor(container) {
@@ -46,7 +47,9 @@ export class Renderer {
     }
 
     const element = document.createElementNS(SVG_NS, 'path')
-    const d = PATH_MODE[path.scene.pathMode](path)
+    const d = path.scene.pathMode === 'spline'
+      ? SPLINE_MODE[path.scene.curveMode](path)
+      : curves(path)
 
     element.setAttribute('d', d)
     element.setAttribute('fill', 'none')

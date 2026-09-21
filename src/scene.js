@@ -1,6 +1,6 @@
 import { Path } from './renderer/path.js'
-import { elliptic } from './elliptic.js'
-import { curve as artea } from './artea.js'
+import { curve as elliptic } from './circle/curve.js'
+import { curve as artea } from './artea/curve.js'
 
 const CURVE_MODE = {
   elliptic,

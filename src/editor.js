@@ -14,13 +14,19 @@ export class Editor {
     this.currentPath = null
     this.selectedNode = null
     this.lastNodeClick = null
-    this.modeButton = document.querySelector('.mode-toggle')
+    this.modeButton = document.querySelector('.spline-toggle')
+    this.curveModeButton = document.querySelector('.artea-toggle')
 
     container.addEventListener('mousedown', (event) => this.handleMouseDown(event))
 
     if (this.modeButton) {
       this.modeButton.addEventListener('click', () => this.togglePathMode())
       this.updateModeButton()
+    }
+
+    if (this.curveModeButton) {
+      this.curveModeButton.addEventListener('click', () => this.toggleCurveMode())
+      this.updateCurveModeButton()
     }
 
     this.render()
@@ -35,6 +41,17 @@ export class Editor {
 
   updateModeButton() {
     this.modeButton.textContent = this.scene.pathMode === 'curve' ? 'Spline' : 'Curve'
+  }
+
+  toggleCurveMode() {
+    this.scene.curveMode = this.scene.curveMode === 'elliptic' ? 'artea' : 'elliptic'
+
+    this.updateCurveModeButton()
+    this.render()
+  }
+
+  updateCurveModeButton() {
+    this.curveModeButton.textContent = this.scene.curveMode === 'elliptic' ? 'Artea' : 'Circle'
   }
 
   handleMouseDown(event) {
