@@ -14,10 +14,27 @@ export class Editor {
     this.currentPath = null
     this.selectedNode = null
     this.lastNodeClick = null
+    this.modeButton = document.querySelector('.mode-toggle')
 
     container.addEventListener('mousedown', (event) => this.handleMouseDown(event))
 
+    if (this.modeButton) {
+      this.modeButton.addEventListener('click', () => this.togglePathMode())
+      this.updateModeButton()
+    }
+
     this.render()
+  }
+
+  togglePathMode() {
+    this.scene.pathMode = this.scene.pathMode === 'curve' ? 'spline' : 'curve'
+
+    this.updateModeButton()
+    this.render()
+  }
+
+  updateModeButton() {
+    this.modeButton.textContent = this.scene.pathMode === 'curve' ? 'Spline' : 'Curve'
   }
 
   handleMouseDown(event) {
