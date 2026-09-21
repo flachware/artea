@@ -1,14 +1,15 @@
 import { Scene } from './scene.js'
-import { Renderer } from './renderer.js'
+import { Renderer } from './renderer/renderer.js'
 
 const DOUBLE_CLICK_TIMEOUT = 400
+const PATH_MODE = 'spline'
 const CURVE_MODE = 'artea'
 
 export class Editor {
   constructor(selector) {
     const container = document.querySelector(selector)
 
-    this.scene = new Scene(CURVE_MODE)
+    this.scene = new Scene(PATH_MODE, CURVE_MODE)
     this.renderer = new Renderer(container)
     this.currentPath = null
     this.selectedNode = null

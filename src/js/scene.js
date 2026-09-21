@@ -1,313 +1,548 @@
+import { Path } from './renderer/path.js'
 import { elliptic } from './elliptic.js'
-import { artea } from './artea.js'
+import { curve as artea } from './artea.js'
 
-const SNAP_THRESHOLD = 10
-const CURVE_MODE = { elliptic, artea }
+const CURVE_MODE = {
+  elliptic,
+  artea
+}
 
-class Path {
-  constructor(scene) {
-    this.scene = scene
-    this.nodes = []
-    this.selected = false
-    this.closed = false
+const EPSILON = 1e-9
+
+function sub(a, b) {
+  return {
+    x: a.x - b.x,
+    y: a.y - b.y
+  }
+}
+
+function add(a, b) {
+  return {
+    x: a.x + b.x,
+    y: a.y + b.y
+  }
+}
+
+function mul(a, s) {
+  return {
+    x: a.x * s,
+    y: a.y * s
+  }
+}
+
+function length(v) {
+  return Math.hypot(v.x, v.y)
+}
+
+function normalize(v) {
+  const len = length(v)
+
+  if (len < EPSILON) {
+    return null
   }
 
-  addNode(x, y) {
-    const node = { x, y, type: 'line', smooth: null, selected: false }
+  return {
+    x: v.x / len,
+    y: v.y / len
+  }
+}
 
-    this.nodes.push(node)
+function determinant(a, b) {
+  return a.x * b.y - a.y * b.x
+}
 
-    return node
+function intersectLines(origin1, dir1, origin2, dir2) {
+  const denominator = determinant(dir1, dir2)
+
+  if (Math.abs(denominator) < EPSILON) {
+    return null
   }
 
-  toggleSmooth(node) {
-    if (node.smooth !== 'smooth' && !this.hasAdjacentOffCurveNode(node)) {
-      return
+  const delta = sub(origin2, origin1)
+  const t = determinant(delta, dir2) / denominator
+
+  return add(origin1, mul(dir1, t))
+}
+
+function setPoint(point, value) {
+  point.x = value.x
+  point.y = value.y
+}
+
+function getAdjacentSegments(segments, path, node) {
+  const incoming = segments.find(segment => {
+    if (segment.endNode === node) {
+      return true
     }
 
-    node.smooth = node.smooth === 'smooth' ? null : 'smooth'
+    if (
+      path.closed &&
+      segment.endNode === path.nodes[0] &&
+      node === path.nodes[0]
+    ) {
+      return true
+    }
 
-    this.constrain()
+    return false
+  })
+
+  const outgoing = segments.find(segment => {
+    return segment.startNode === node
+  })
+
+  return {
+    incoming,
+    outgoing
+  }
+}
+
+function getChordDirection(segments, path, node) {
+  const { incoming, outgoing } =
+    getAdjacentSegments(segments, path, node)
+
+  const directions = []
+
+  if (incoming) {
+    const other =
+      incoming.startNode === node
+        ? incoming.endNode
+        : incoming.startNode
+
+    const direction = normalize(
+      sub(other, node)
+    )
+
+    if (direction) {
+      directions.push(direction)
+    }
   }
 
-  hasAdjacentOffCurveNode(node) {
-    return this.getSegments().some((segment) =>
-      segment.controlPoint && (segment.startNode === node || segment.endNode === node)
+  if (outgoing) {
+    const other =
+      outgoing.startNode === node
+        ? outgoing.endNode
+        : outgoing.startNode
+
+    const direction = normalize(
+      sub(other, node)
+    )
+
+    if (direction) {
+      directions.push(direction)
+    }
+  }
+
+  if (!directions.length) {
+    return null
+  }
+
+  if (directions.length === 1) {
+    return directions[0]
+  }
+
+  const direction = normalize(
+    add(directions[0], directions[1])
+  )
+
+  return direction || directions[0]
+}
+
+function getExistingDirection(segments, path, node) {
+  const { incoming, outgoing } =
+    getAdjacentSegments(segments, path, node)
+
+  const directions = []
+
+  /*
+   * Eingehendes Segment:
+   *
+   * Der Tangentenarm des Segments läuft vom
+   * Node zurück zum Tangentenschnittpunkt.
+   *
+   * Deshalb:
+   *
+   *     Node <- T
+   *
+   * Richtung = Node - T
+   */
+  if (incoming && incoming.controlPoint) {
+    const direction = normalize(
+      sub(node, incoming.controlPoint)
+    )
+
+    if (direction) {
+      directions.push(direction)
+    }
+  }
+
+  /*
+   * Ausgehendes Segment:
+   *
+   * Der Tangentenarm läuft vom Node zu T.
+   *
+   * Deshalb:
+   *
+   *     Node -> T
+   *
+   * Richtung = T - Node
+   */
+  if (outgoing && outgoing.controlPoint) {
+    const direction = normalize(
+      sub(outgoing.controlPoint, node)
+    )
+
+    if (direction) {
+      directions.push(direction)
+    }
+  }
+
+  if (!directions.length) {
+    return null
+  }
+
+  if (directions.length === 1) {
+    return directions[0]
+  }
+
+  /*
+   * Beide Richtungen müssen dieselbe Tangente
+   * beschreiben. Bei einem bereits vorhandenen
+   * glatten Node mitteln wir nur die beiden
+   * Richtungsvektoren.
+   */
+  const direction = normalize(
+    add(directions[0], directions[1])
+  )
+
+  return direction || directions[0]
+}
+
+function getNodeDirection(segments, path, node) {
+  const existing = getExistingDirection(
+    segments,
+    path,
+    node
+  )
+
+  if (existing) {
+    return existing
+  }
+
+  return getChordDirection(
+    segments,
+    path,
+    node
+  )
+}
+
+/*
+ * Verschiebt den vorhandenen Tangentenschnittpunkt
+ * entlang der vom Node vorgegebenen Tangente.
+ *
+ * Die bisherige Entfernung des T vom Node bleibt
+ * erhalten.
+ */
+function preserveHandlePosition(
+  segment,
+  node,
+  direction
+) {
+  if (!segment.controlPoint || !direction) {
+    return
+  }
+
+  const distance = length(
+    sub(segment.controlPoint, node)
+  )
+
+  if (distance < EPSILON) {
+    return
+  }
+
+  const point = add(
+    node,
+    mul(direction, distance)
+  )
+
+  setPoint(
+    segment.controlPoint,
+    point
+  )
+}
+
+function constrainSegment(segment, directions) {
+  if (!segment.controlPoint) {
+    return
+  }
+
+  const startSmooth =
+    segment.startNode.smooth === 'smooth' &&
+    directions.has(segment.startNode)
+
+  const endSmooth =
+    segment.endNode.smooth === 'smooth' &&
+    directions.has(segment.endNode)
+
+  /*
+   * Beide Nodes smooth:
+   *
+   * Die beiden Tangenten schneiden sich in T.
+   * T ist der gemeinsame Tangentenschnittpunkt
+   * des Segments.
+   */
+  if (startSmooth && endSmooth) {
+    const point = intersectLines(
+      segment.startNode,
+      directions.get(segment.startNode),
+      segment.endNode,
+      directions.get(segment.endNode)
+    )
+
+    if (point) {
+      setPoint(
+        segment.controlPoint,
+        point
+      )
+    }
+
+    return
+  }
+
+  /*
+   * Nur Start-Node smooth:
+   *
+   * T bleibt auf der Tangente des Start-Nodes.
+   * Seine bisherige Entfernung zum Node bleibt
+   * erhalten.
+   */
+  if (startSmooth) {
+    preserveHandlePosition(
+      segment,
+      segment.startNode,
+      directions.get(segment.startNode)
+    )
+
+    return
+  }
+
+  /*
+   * Nur End-Node smooth:
+   *
+   * Die Richtung ist vom End-Node nach außen,
+   * also ebenfalls auf der korrekten Seite der
+   * Tangente.
+   */
+  if (endSmooth) {
+    preserveHandlePosition(
+      segment,
+      segment.endNode,
+      directions.get(segment.endNode)
     )
   }
+}
 
-  getTangent(node, segment) {
-    const other = segment.startNode === node ? segment.endNode : segment.startNode
+function constrainMovedHandle(
+  segments,
+  path,
+  movedPoint
+) {
+  const changedSegment = segments.find(
+    segment =>
+      segment.controlPoint === movedPoint
+  )
 
-    if (segment.controlPoint) {
-      const dx = segment.controlPoint.x - node.x
-      const dy = segment.controlPoint.y - node.y
-      const dist = Math.hypot(dx, dy) || 1
-
-      return { dir: { x: dx / dist, y: dy / dist }, dist }
-    }
-
-    const dx = other.x - node.x
-    const dy = other.y - node.y
-    const dist = Math.hypot(dx, dy) || 1
-
-    return { dir: { x: dx / dist, y: dy / dist }, dist: dist / 2 }
+  if (!changedSegment) {
+    return
   }
 
-  setControlPoint(controlPoint, node, dir, dist) {
-    controlPoint.x = node.x + dir.x * dist
-    controlPoint.y = node.y + dir.y * dist
-  }
+  const nodes = [
+    changedSegment.startNode,
+    changedSegment.endNode
+  ]
 
-  intersectLines(origin1, dir1, origin2, dir2) {
-    const denom = dir1.x * dir2.y - dir1.y * dir2.x
-
-    if (Math.abs(denom) < 1e-6) {
-      return null
-    }
-
-    const dx = origin2.x - origin1.x
-    const dy = origin2.y - origin1.y
-    const t = (dx * dir2.y - dy * dir2.x) / denom
-
-    return { x: origin1.x + dir1.x * t, y: origin1.y + dir1.y * t }
-  }
-
-  constrain(movedPoint = null) {
-    if (movedPoint) {
-      this.constrainAroundMovedPoint(movedPoint)
-      return
-    }
-
-    const segments = this.getSegments()
-
-    for (let pass = 0; pass < segments.length; pass++) {
-      segments.forEach((segment, index) => {
-        const node = segment.endNode
-
-        if (node.smooth !== 'smooth') {
-          return
-        }
-
-        const next = segments[index + 1] || (this.closed ? segments[0] : null)
-
-        if (!next || !next.controlPoint) {
-          return
-        }
-
-        const sourceTangent = this.getTangent(node, segment)
-        const targetTangent = this.getTangent(node, next)
-        const dir = { x: -sourceTangent.dir.x, y: -sourceTangent.dir.y }
-
-        this.setControlPoint(next.controlPoint, node, dir, targetTangent.dist)
-      })
-    }
-  }
-
-  constrainAroundMovedPoint(movedPoint) {
-    const segments = this.getSegments()
-    const segment = segments.find((s) => s.controlPoint === movedPoint)
-
-    if (!segment) {
-      return
-    }
-
-    this.constrainNodeAgainst(segments, segment.startNode, segment)
-    this.constrainNodeAgainst(segments, segment.endNode, segment)
-  }
-
-  constrainNodeAgainst(segments, node, changedSegment) {
+  nodes.forEach(node => {
     if (node.smooth !== 'smooth') {
       return
     }
 
-    const otherSegment = segments.find((s) =>
-      s !== changedSegment && (s.startNode === node || s.endNode === node)
+    /*
+     * Der vom Benutzer bewegte T bestimmt die
+     * Tangentenrichtung an diesem Node.
+     *
+     * Bei einem Start-Node:
+     *
+     *     Node -> T
+     *
+     * Bei einem End-Node:
+     *
+     *     Node <- T
+     *
+     * Beide müssen geometrisch dieselbe Tangente
+     * repräsentieren.
+     */
+    let direction
+
+    if (changedSegment.startNode === node) {
+      direction = normalize(
+        sub(movedPoint, node)
+      )
+    } else {
+      direction = normalize(
+        sub(node, movedPoint)
+      )
+    }
+
+    if (!direction) {
+      return
+    }
+
+    const {
+      incoming,
+      outgoing
+    } = getAdjacentSegments(
+      segments,
+      path,
+      node
     )
 
-    if (!otherSegment || !otherSegment.controlPoint) {
+    const otherSegment =
+      incoming === changedSegment
+        ? outgoing
+        : incoming
+
+    if (
+      !otherSegment ||
+      !otherSegment.controlPoint
+    ) {
       return
     }
 
-    const changedTangent = this.getTangent(node, changedSegment)
-    const requiredDir = { x: -changedTangent.dir.x, y: -changedTangent.dir.y }
+    const farNode =
+      otherSegment.startNode === node
+        ? otherSegment.endNode
+        : otherSegment.startNode
 
-    const farNode = otherSegment.startNode === node ? otherSegment.endNode : otherSegment.startNode
-    const farTangent = this.getTangent(farNode, otherSegment)
+    let farDirection
 
-    const point = this.intersectLines(node, requiredDir, farNode, farTangent.dir)
-    const isForward = point &&
-      (point.x - node.x) * requiredDir.x + (point.y - node.y) * requiredDir.y > 0
-
-    if (isForward) {
-      otherSegment.controlPoint.x = point.x
-      otherSegment.controlPoint.y = point.y
-      return
-    }
-
-    const otherTangent = this.getTangent(node, otherSegment)
-
-    this.setControlPoint(otherSegment.controlPoint, node, requiredDir, otherTangent.dist)
-  }
-
-  close() {
-    this.closed = true
-  }
-
-  snapPoint(point, nodeA, nodeB) {
-    const snapped = { x: point.x, y: point.y }
-
-    if (Math.abs(point.x - nodeA.x) < SNAP_THRESHOLD) {
-      snapped.x = nodeA.x
-    } else if (Math.abs(point.x - nodeB.x) < SNAP_THRESHOLD) {
-      snapped.x = nodeB.x
-    }
-
-    if (Math.abs(point.y - nodeA.y) < SNAP_THRESHOLD) {
-      snapped.y = nodeA.y
-    } else if (Math.abs(point.y - nodeB.y) < SNAP_THRESHOLD) {
-      snapped.y = nodeB.y
-    }
-
-    return snapped
-  }
-
-  moveNode(node, x, y) {
-    if (node.type === 'offcurve') {
-      const segment = this.getSegments().find((s) => s.controlPoint === node)
-      const point = segment ? this.snapPoint({ x, y }, segment.startNode, segment.endNode) : { x, y }
-
-      node.x = point.x
-      node.y = point.y
-
-      this.constrain(node)
-
-      return
-    }
-
-    const segments = this.getSegments()
-
-    const touching = segments
-      .filter((segment) => segment.controlPoint && (segment.startNode === node || segment.endNode === node))
-      .map((segment) => {
-        const farNode = segment.startNode === node ? segment.endNode : segment.startNode
-
-        return {
-          segment,
-          ownTangent: this.getTangent(node, segment),
+    if (otherSegment.startNode === farNode) {
+      farDirection = normalize(
+        sub(
+          otherSegment.controlPoint,
+          farNode
+        )
+      )
+    } else {
+      farDirection = normalize(
+        sub(
           farNode,
-          farTangent: this.getTangent(farNode, segment)
-        }
-      })
-
-    node.x = x
-    node.y = y
-
-    touching.forEach(({ segment, ownTangent, farNode, farTangent }) => {
-      const point = this.intersectLines(node, ownTangent.dir, farNode, farTangent.dir)
-
-      if (point) {
-        segment.controlPoint.x = point.x
-        segment.controlPoint.y = point.y
-        return
-      }
-
-      this.setControlPoint(segment.controlPoint, node, ownTangent.dir, ownTangent.dist)
-    })
-
-    this.constrain(node)
-  }
-
-  getSegments() {
-    const segments = []
-
-    let previousEndNode = this.nodes[0]
-    let i = 1
-
-    while (i < this.nodes.length) {
-      const node = this.nodes[i]
-
-      if (node.type === 'offcurve') {
-        const controlPoint = node
-        const endNode = this.nodes[i + 1]
-
-        if (!endNode) {
-          if (this.closed) {
-            segments.push({ startNode: previousEndNode, controlPoint, endNode: this.nodes[0], insertIndex: i })
-          }
-
-          return segments
-        }
-
-        segments.push({ startNode: previousEndNode, controlPoint, endNode, insertIndex: i })
-        previousEndNode = endNode
-        i += 2
-      } else {
-        segments.push({ startNode: previousEndNode, controlPoint: null, endNode: node, insertIndex: i })
-        previousEndNode = node
-        i += 1
-      }
+          otherSegment.controlPoint
+        )
+      )
     }
 
-    if (this.closed) {
-      segments.push({
-        startNode: previousEndNode,
-        controlPoint: null,
-        endNode: this.nodes[0],
-        insertIndex: this.nodes.length
-      })
-    }
-
-    return segments
-  }
-
-  convertSegmentToCurve(segmentIndex) {
-    const segment = this.getSegments()[segmentIndex]
-
-    if (!segment || segment.controlPoint) {
+    if (!farDirection) {
       return
     }
 
-    const { startNode, endNode, insertIndex } = segment
+    const point = intersectLines(
+      node,
+      direction,
+      farNode,
+      farDirection
+    )
 
-    const controlPoint = {
-      x: (startNode.x + endNode.x) / 2,
-      y: (startNode.y + endNode.y) / 2,
-      type: 'offcurve',
-      selected: false
+    if (!point) {
+      return
     }
 
-    this.nodes.splice(insertIndex, 0, controlPoint)
+    setPoint(
+      otherSegment.controlPoint,
+      point
+    )
+  })
+}
 
-    endNode.type = 'curve'
+function constrainPath(
+  path,
+  movedPoint = null
+) {
+  const segments = path.getSegments()
+
+  if (!segments.length) {
+    return
   }
 
-  resolve(p0, p1, p2) {
-    const speed = this.scene.speed(p0, p1, p2)
+  /*
+   * Ein direkt bewegter Curve-Handle definiert
+   * die Tangente. Die gegenüberliegende Seite
+   * wird daran angepasst.
+   */
+  if (
+    movedPoint &&
+    movedPoint.type === 'offcurve'
+  ) {
+    constrainMovedHandle(
+      segments,
+      path,
+      movedPoint
+    )
 
-    return {
-      p0,
-      cp1: {
-        x: p0.x + speed * (p1.x - p0.x),
-        y: p0.y + speed * (p1.y - p0.y)
-      },
-      cp2: {
-        x: p2.x + speed * (p1.x - p2.x),
-        y: p2.y + speed * (p1.y - p2.y)
-      },
-      p3: p2
+    return
+  }
+
+  const smoothNodes = new Set()
+
+  segments.forEach(segment => {
+    if (
+      segment.startNode.smooth === 'smooth'
+    ) {
+      smoothNodes.add(
+        segment.startNode
+      )
     }
-  }
+
+    if (
+      segment.endNode.smooth === 'smooth'
+    ) {
+      smoothNodes.add(
+        segment.endNode
+      )
+    }
+  })
+
+  const directions = new Map()
+
+  smoothNodes.forEach(node => {
+    const direction = getNodeDirection(
+      segments,
+      path,
+      node
+    )
+
+    if (direction) {
+      directions.set(
+        node,
+        direction
+      )
+    }
+  })
+
+  segments.forEach(segment => {
+    constrainSegment(
+      segment,
+      directions
+    )
+  })
 }
 
 export class Scene {
-  constructor(curveMode = 'elliptic') {
+  constructor(
+    pathMode = 'curve',
+    curveMode = 'elliptic'
+  ) {
     this.paths = []
+    this.pathMode = pathMode
     this.curveMode = curveMode
-  }
-
-  speed(p0, p1, p2) {
-    return CURVE_MODE[this.curveMode](p0, p1, p2)
   }
 
   addPath() {
@@ -316,5 +551,23 @@ export class Scene {
     this.paths.push(path)
 
     return path
+  }
+
+  speed(p0, p1, p2) {
+    return CURVE_MODE[this.curveMode](
+      p0,
+      p1,
+      p2
+    )
+  }
+
+  constrain(
+    path,
+    movedPoint = null
+  ) {
+    constrainPath(
+      path,
+      movedPoint
+    )
   }
 }
