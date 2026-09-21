@@ -2,7 +2,7 @@ import {
   sub,
   normalize,
   intersectLines
-} from './geometry.js'
+} from './vector.js'
 
 const SNAP_THRESHOLD = 10
 
