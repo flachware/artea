@@ -477,15 +477,14 @@ function constrainPath(
    * die Tangente. Die gegenüberliegende Seite
    * wird daran angepasst.
    */
-  if (
-    movedPoint &&
-    movedPoint.type === 'offcurve'
-  ) {
-    constrainMovedHandle(
-      segments,
-      path,
-      movedPoint
-    )
+  if (movedPoint) {
+    if (movedPoint.type === 'offcurve') {
+      constrainMovedHandle(
+        segments,
+        path,
+        movedPoint
+      )
+    }
 
     return
   }
