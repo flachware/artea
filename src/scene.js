@@ -154,16 +154,16 @@ function getExistingDirection(segments, path, node) {
   const directions = []
 
   /*
-   * Eingehendes Segment:
+   * Incoming segment:
    *
-   * Der Tangentenarm des Segments läuft vom
-   * Node zurück zum Tangentenschnittpunkt.
+   * The segment's tangent arm runs from the
+   * node back to the tangent intersection point.
    *
-   * Deshalb:
+   * Therefore:
    *
    *     Node <- T
    *
-   * Richtung = Node - T
+   * Direction = Node - T
    */
   if (incoming && incoming.controlPoint) {
     const direction = normalize(
@@ -176,15 +176,15 @@ function getExistingDirection(segments, path, node) {
   }
 
   /*
-   * Ausgehendes Segment:
+   * Outgoing segment:
    *
-   * Der Tangentenarm läuft vom Node zu T.
+   * The tangent arm runs from the node to T.
    *
-   * Deshalb:
+   * Therefore:
    *
    *     Node -> T
    *
-   * Richtung = T - Node
+   * Direction = T - Node
    */
   if (outgoing && outgoing.controlPoint) {
     const direction = normalize(
@@ -205,10 +205,9 @@ function getExistingDirection(segments, path, node) {
   }
 
   /*
-   * Beide Richtungen müssen dieselbe Tangente
-   * beschreiben. Bei einem bereits vorhandenen
-   * glatten Node mitteln wir nur die beiden
-   * Richtungsvektoren.
+   * Both directions must describe the same tangent.
+   * For an already-smooth node we just average the
+   * two direction vectors.
    */
   const direction = normalize(
     add(directions[0], directions[1])
@@ -236,11 +235,11 @@ function getNodeDirection(segments, path, node) {
 }
 
 /*
- * Verschiebt den vorhandenen Tangentenschnittpunkt
- * entlang der vom Node vorgegebenen Tangente.
+ * Moves the existing tangent intersection point
+ * along the tangent given by the node.
  *
- * Die bisherige Entfernung des T vom Node bleibt
- * erhalten.
+ * The previous distance of T from the node is
+ * preserved.
  */
 function preserveHandlePosition(
   segment,
@@ -284,11 +283,10 @@ function constrainSegment(segment, directions) {
     directions.has(segment.endNode)
 
   /*
-   * Beide Nodes smooth:
+   * Both nodes smooth:
    *
-   * Die beiden Tangenten schneiden sich in T.
-   * T ist der gemeinsame Tangentenschnittpunkt
-   * des Segments.
+   * The two tangents intersect at T. T is the
+   * segment's shared tangent intersection point.
    */
   if (startSmooth && endSmooth) {
     const point = intersectLines(
@@ -309,11 +307,10 @@ function constrainSegment(segment, directions) {
   }
 
   /*
-   * Nur Start-Node smooth:
+   * Only start node smooth:
    *
-   * T bleibt auf der Tangente des Start-Nodes.
-   * Seine bisherige Entfernung zum Node bleibt
-   * erhalten.
+   * T stays on the start node's tangent. Its
+   * previous distance to the node is preserved.
    */
   if (startSmooth) {
     preserveHandlePosition(
@@ -326,11 +323,11 @@ function constrainSegment(segment, directions) {
   }
 
   /*
-   * Nur End-Node smooth:
+   * Only end node smooth:
    *
-   * T liegt hinter dem End-Node, also in der
-   * entgegengesetzten Richtung der gespeicherten
-   * Vorwärtsrichtung.
+   * T lies behind the end node, i.e. in the
+   * opposite direction of the stored forward
+   * direction.
    */
   if (endSmooth) {
     const direction = directions.get(segment.endNode)
@@ -368,19 +365,19 @@ function constrainMovedHandle(
     }
 
     /*
-     * Der vom Benutzer bewegte T bestimmt die
-     * Tangentenrichtung an diesem Node.
+     * The T moved by the user determines the
+     * tangent direction at this node.
      *
-     * Bei einem Start-Node:
+     * For a start node:
      *
      *     Node -> T
      *
-     * Bei einem End-Node:
+     * For an end node:
      *
      *     Node <- T
      *
-     * Beide müssen geometrisch dieselbe Tangente
-     * repräsentieren.
+     * Both must geometrically represent the
+     * same tangent.
      */
     let direction
 
@@ -475,9 +472,9 @@ function constrainPath(
   }
 
   /*
-   * Ein direkt bewegter Curve-Handle definiert
-   * die Tangente. Die gegenüberliegende Seite
-   * wird daran angepasst.
+   * A directly moved curve handle defines the
+   * tangent. The opposite side is adjusted to
+   * match it.
    */
   if (movedPoint) {
     if (movedPoint.type === 'offcurve') {

@@ -62,8 +62,8 @@ export class Path {
     }
 
     /*
-     * Ein Smooth-Node braucht auf beiden
-     * Seiten ein Kurvensegment.
+     * A smooth node needs a curve segment
+     * on both sides.
      */
     const needsCurve = adjacent.filter(
       segment =>
@@ -199,7 +199,7 @@ export class Path {
     y
   ) {
     /*
-     * T-Punkt / Offcurve-Punkt
+     * T point / offcurve point.
      */
     if (
       node.type === 'offcurve'
@@ -229,8 +229,8 @@ export class Path {
       node.y = point.y
 
       /*
-       * Scene übernimmt anschließend
-       * die Smooth-Constraint.
+       * Scene then applies the
+       * smooth constraint.
        */
       this.scene.constrain(
         this,
@@ -241,11 +241,10 @@ export class Path {
     }
 
     /*
-     * Normaler Node.
+     * Regular node.
      *
-     * Die bestehenden T-Punkte werden
-     * zunächst zusammen mit dem Node
-     * verschoben.
+     * The existing T points are first
+     * moved together with the node.
      */
     const segments =
       this.getSegments()
@@ -323,7 +322,7 @@ export class Path {
     )
 
     /*
-     * Danach Smooth-Constraints.
+     * Then apply smooth constraints.
      */
     this.scene.constrain(
       this,
@@ -391,7 +390,7 @@ export class Path {
         this.nodes[i]
 
       /*
-       * Offcurve-Node = T des Segments.
+       * Offcurve node = the segment's T.
        */
       if (
         node.type === 'offcurve'
@@ -403,8 +402,8 @@ export class Path {
           this.nodes[i + 1]
 
         /*
-         * Offcurve am Ende eines
-         * geschlossenen Pfades.
+         * Offcurve at the end of a
+         * closed path.
          */
         if (!endNode) {
           if (this.closed) {
@@ -446,7 +445,7 @@ export class Path {
       }
 
       /*
-       * Normales Liniensegment.
+       * Regular line segment.
        */
       segments.push({
         startNode:
@@ -469,13 +468,13 @@ export class Path {
     }
 
     /*
-     * Bei einem geschlossenen Pfad
-     * letztes Node -> erstes Node.
+     * For a closed path, last node ->
+     * first node.
      *
-     * Falls das letzte Segment bereits
-     * durch einen Offcurve-Punkt erzeugt
-     * wurde, wird hier nur die fehlende
-     * Schlussverbindung ergänzt.
+     * If the last segment was already
+     * created by an offcurve point,
+     * this only adds the missing
+     * closing connection.
      */
     if (
       this.closed &&
