@@ -157,14 +157,7 @@ $$
 P_{2,i}=P_{3,i}+e_i(T_i-P_{3,i})
 $$
 
-The second factor depends only on the tangent geometry of the segment. It is determined by the two tangent lengths:
-
-$$
-t_{1,i}=\lVert T_i-P_{0,i}\rVert,\qquad
-t_{2,i}=\lVert T_i-P_{3,i}\rVert
-$$
-
-and is given by
+The second factor depends only on the tangent geometry of the segment, through the two tangent lengths $t_{1,i}, t_{2,i}$ introduced above:
 
 $$
 F_{s,i}=\frac{t_{2,i}}{t_{1,i}^{2}},
