@@ -101,8 +101,7 @@ $$
 The Artea parameter for each segment is calculated in exactly the same way as for a single curve:
 
 $$
-p_{A,i}
-=
+p_{A,i} =
 1-(1-\gamma)
 \left(\frac{2B_i}{A_i+B_i}\right)^{3/4}
 $$
@@ -229,8 +228,7 @@ $$
 Therefore, the largest common value that satisfies both bounds is the smaller of the two reference values:
 
 $$
-J_{e,i}=J_{s,i+1}
-=
+J_{e,i}=J_{s,i+1} =
 \min\left(J_{eA,i},J_{sA,i+1}\right)
 $$
 
