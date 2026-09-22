@@ -25,10 +25,10 @@
  *   r = a/b
  *   s = sqrt(a*b)
  *
- *   C1 = P0 + p*(T-P0)
- *   C2 = P3 + e*(T-P3)
+ *   C1 = P0 + p0*(T-P0)
+ *   C2 = P3 + p3*(T-P3)
  *
- * p and e are independent: each end is pulled toward T on its
+ * p0 and p3 are independent: each end is pulled toward T on its
  * own, exactly as a and b are independent leg lengths.
  *
  * ---------------------------------------------------------------
@@ -40,22 +40,22 @@
  *   Fs = (1/s) * r^(-3/2)
  *   Fe = (1/s) * r^(+3/2)
  *
- *   Js = q(p)*Fs                - curvature at P0
- *   Je = q(e)*Fe                - curvature at P3
+ *   Js = q(p0)*Fs               - curvature at P0
+ *   Je = q(p3)*Fe               - curvature at P3
  *
  * With K = (T-P0) x (T-P3) (the 2D cross product), the segment's
  * *actual* endpoint curvatures are
  *
- *   kappaStart(p,e) = -(2/3)*K*(1-e) / (p²*a³)
- *   kappaEnd(p,e)   = -(2/3)*K*(1-p) / (e²*b³)
+ *   kappaStart(p0,p3) = -(2/3)*K*(1-p3) / (p0²*a³)
+ *   kappaEnd(p0,p3)   = -(2/3)*K*(1-p0) / (p3²*b³)
  *
- * which depend on p AND e jointly at each end - real curvature
+ * which depend on p0 AND p3 jointly at each end - real curvature
  * mixes both parameters, and matching it exactly at every join
  * has no closed form once more than one join is coupled (the
  * ring-closure polynomial's degree grows past 4 with segment
  * count - proven, not just unobserved; verified separately). Js
  * and Je equal the segment's real endpoint curvatures (up to one
- * shared constant) only on the diagonal p=e - the plain Artea
+ * shared constant) only on the diagonal p0=p3 - the plain Artea
  * curve. Off the diagonal they are a decoupled *extension* of
  * that quantity: each depends only on its own end's parameter and
  * the segment's fixed a,b, which is exactly what makes a join's
@@ -83,10 +83,10 @@
  *   JsA = qA*Fs,   JeA = qA*Fe
  *
  * pA is the curvature-spike-minimizing split for this segment
- * in isolation (p=e=pA, the plain Artea curve). It is a floor
+ * in isolation (p0=p3=pA, the plain Artea curve). It is a floor
  * that must never be undershot: q is strictly decreasing, so
  *
- *   p >= pA  <=>  Js <= JsA           (likewise e, Je, JeA)
+ *   p0 >= pA  <=>  Js <= JsA          (likewise p3, Je, JeA)
  *
  * i.e. a segment's curvature may only be relaxed below its own
  * reference, never pushed past it - the reference is already
@@ -287,12 +287,12 @@ function segmentGeometry(segment, index) {
  * Real curvature
  * ================================================================ */
 
-function kappaStart(g, p, e) {
-  return -(2 / 3) * g.K * (1 - e) / (p * p * g.a ** 3)
+function kappaStart(g, p0, p3) {
+  return -(2 / 3) * g.K * (1 - p3) / (p0 * p0 * g.a ** 3)
 }
 
-function kappaEnd(g, p, e) {
-  return -(2 / 3) * g.K * (1 - p) / (e * e * g.b ** 3)
+function kappaEnd(g, p0, p3) {
+  return -(2 / 3) * g.K * (1 - p0) / (p3 * p3 * g.b ** 3)
 }
 
 
@@ -411,8 +411,8 @@ function buildSmoothComponents(geometry, smoothJoins, closed) {
 function composeChain(geometry, indices, closed) {
   /*
    * Closed-form composition in the decoupled Js/Je currency (see
-   * file header): Js = q(p)*Fs depends only on p, Je = q(e)*Fe
-   * only on e, so a join only ever touches one fresh variable
+   * file header): Js = q(p0)*Fs depends only on p0, Je = q(p3)*Fe
+   * only on p3, so a join only ever touches one fresh variable
    * from each side - no cross-segment coupling, hence no
    * ring-closure obstruction and no numerical solver anywhere,
    * open chain or closed ring alike. Each join's shared value is
@@ -440,15 +440,15 @@ function composeChain(geometry, indices, closed) {
     const segmentJs = Js[k]
     const segmentJe = Je[k]
     const form = formFromEndpointScales(segmentJs, segmentJe)
-    const segmentP = parameterFromQ(segmentJs / g.Fs)
-    const segmentE = parameterFromQ(segmentJe / g.Fe)
+    const segmentP0 = parameterFromQ(segmentJs / g.Fs)
+    const segmentP3 = parameterFromQ(segmentJe / g.Fe)
 
     return {
       segmentIndex: i,
       Js: segmentJs,
       Je: segmentJe,
-      p: segmentP,
-      e: segmentE,
+      p0: segmentP0,
+      p3: segmentP3,
       R: form.R,
       S: form.S,
       RA: g.RA,
@@ -591,7 +591,7 @@ function quarticRealRoots(a, b, c, d, e) {
 
 
 /* ================================================================
- * General FORM -> p/e
+ * General FORM -> p0/p3
  *
  * Kept for debugging / future non-symmetric FORM points.
  * ================================================================ */
@@ -614,29 +614,29 @@ function parametersFromFormXY(x, y, pA, segmentIndex) {
   const candidates = []
 
   for (const root of roots) {
-    const p = root
-    if (!(p > ROOT_EPSILON) || !(p < 1 - ROOT_EPSILON)) continue
+    const p0 = root
+    if (!(p0 > ROOT_EPSILON) || !(p0 < 1 - ROOT_EPSILON)) continue
 
-    const e = 1 - x * p * p
-    if (!(e > ROOT_EPSILON) || !(e < 1 - ROOT_EPSILON)) continue
+    const p3 = 1 - x * p0 * p0
+    if (!(p3 > ROOT_EPSILON) || !(p3 < 1 - ROOT_EPSILON)) continue
 
-    const xCheck = (1 - e) / (p * p)
-    const yCheck = (1 - p) / (e * e)
+    const xCheck = (1 - p3) / (p0 * p0)
+    const yCheck = (1 - p0) / (p3 * p3)
     const residual = Math.abs(xCheck - x) + Math.abs(yCheck - y)
 
     if (residual > 1e-7 * Math.max(1, x, y)) continue
 
     candidates.push({
-      p,
-      e,
+      p0,
+      p3,
       residual,
-      distanceToArtea: Math.hypot(p - pA, e - pA)
+      distanceToArtea: Math.hypot(p0 - pA, p3 - pA)
     })
   }
 
   if (!candidates.length) {
     throw new Error(
-      `Segment ${segmentIndex}: FORM point has no valid Bézier p/e solution. ` +
+      `Segment ${segmentIndex}: FORM point has no valid Bézier p0/p3 solution. ` +
       `x=${x}, y=${y}, pA=${pA}`
     )
   }
@@ -648,8 +648,8 @@ function parametersFromFormXY(x, y, pA, segmentIndex) {
   )
 
   return {
-    p: candidates[0].p,
-    e: candidates[0].e,
+    p0: candidates[0].p0,
+    p3: candidates[0].p3,
     residual: candidates[0].residual
   }
 }
@@ -669,12 +669,12 @@ function reconstructParameters(geometry, formsBySegment) {
     }
 
     /*
-     * composeFormChain already resolved p and e (independently,
-     * via q(p) and q(e)), so there is nothing left to invert.
+     * composeFormChain already resolved p0 and p3 (independently,
+     * via q(p0) and q(p3)), so there is nothing left to invert.
      */
     parameters[i] = {
-      p: form.p,
-      e: form.e,
+      p0: form.p0,
+      p3: form.p3,
       Js: form.Js,
       Je: form.Je,
       R: form.R,
@@ -695,26 +695,26 @@ function endpointScalesFromParameters(geometry, parameters) {
   const Je = new Array(geometry.length)
 
   for (let i = 0; i < geometry.length; i++) {
-    const p = parameters[i].p
-    const e = parameters[i].e
+    const p0 = parameters[i].p0
+    const p3 = parameters[i].p3
 
     if (
-      !Number.isFinite(p) ||
-      !Number.isFinite(e) ||
-      !(p > 0) ||
-      !(p < 1) ||
-      !(e > 0) ||
-      !(e < 1)
+      !Number.isFinite(p0) ||
+      !Number.isFinite(p3) ||
+      !(p0 > 0) ||
+      !(p0 < 1) ||
+      !(p3 > 0) ||
+      !(p3 < 1)
     ) {
-      throw new Error(`Segment ${i}: invalid reconstructed p/e.`)
+      throw new Error(`Segment ${i}: invalid reconstructed p0/p3.`)
     }
 
     /*
-     * Decoupled: Js depends only on p, Je only on e (matching
+     * Decoupled: Js depends only on p0, Je only on p3 (matching
      * how composeFormChain built them).
      */
-    Js[i] = qFromParameter(p) * geometry[i].Fs
-    Je[i] = qFromParameter(e) * geometry[i].Fe
+    Js[i] = qFromParameter(p0) * geometry[i].Fs
+    Je[i] = qFromParameter(p3) * geometry[i].Fe
   }
 
   return { Js, Je }
@@ -734,10 +734,10 @@ function g2Errors(geometry, parameters, closed, smoothJoins) {
    * header and FORM_EPSILON).
    */
   const curvatureEnd = geometry.map((g, i) =>
-    kappaEnd(g, parameters[i].p, parameters[i].e)
+    kappaEnd(g, parameters[i].p0, parameters[i].p3)
   )
   const curvatureStart = geometry.map((g, i) =>
-    kappaStart(g, parameters[i].p, parameters[i].e)
+    kappaStart(g, parameters[i].p0, parameters[i].p3)
   )
 
   const joinCount = closed ? geometry.length : Math.max(0, geometry.length - 1)
@@ -774,16 +774,16 @@ function makeCurve(segment, parameter) {
   const T = segment.controlPoint
   const P3 = segment.endNode
 
-  const C1 = add(P0, mul(sub(T, P0), parameter.p))
-  const C2 = add(P3, mul(sub(T, P3), parameter.e))
+  const C1 = add(P0, mul(sub(T, P0), parameter.p0))
+  const C2 = add(P3, mul(sub(T, P3), parameter.p3))
 
   return {
     P0,
     C1,
     C2,
     P3,
-    p: parameter.p,
-    e: parameter.e
+    p0: parameter.p0,
+    p3: parameter.p3
   }
 }
 
