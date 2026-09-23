@@ -4,6 +4,8 @@ The Artea curve is a cubic Bézier curve that approximates the minimum curvature
 
 The Artea spline generalizes the Artea curve as a sequence of optimized segments. Its construction expresses curvature in terms of ratio and scale. Each segment starts as an Artea curve, with smooth joins that approximate $G^2$ continuity through a closed-form solution.
 
+Explore the [prototype implementation](https://flachware.com/artea/).
+
 ## Cubic Bézier curve
 
 $$
