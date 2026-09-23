@@ -59,21 +59,21 @@ with
 $$
 x=1-p,
 \qquad
-y=(1-\gamma)(2-r)^{3/4},
+y=(1-\kappa)(2-r)^{3/4},
 \qquad
-a=2^{3/4}(1-\gamma)
+a=2^{3/4}(1-\kappa)
 $$
 
 where
 
 $$
-\gamma=\frac{4(\sqrt{2}-1)}{3}.
+\kappa=\frac{4(\sqrt{2}-1)}{3}.
 $$
 
 Solving the superellipse for the optimized parameter $p$ gives:
 
 $$
-p=1-(1-\gamma)r^{3/4}.
+p=1-(1-\kappa)r^{3/4}.
 $$
 
 The inner control points are then:

@@ -76,7 +76,7 @@
  * Artea reference
  * ---------------------------------------------------------------
  *
- *   pA = 1 - (1-gamma)*(2B/(A+B))^(3/4)     A=max(a,b), B=min(a,b)
+ *   pA = 1 - (1-kappa)*(2B/(A+B))^(3/4)     A=max(a,b), B=min(a,b)
  *   qA = q(pA)
  *
  *   RA = r,   SA = s/qA

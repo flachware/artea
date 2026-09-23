@@ -4,9 +4,9 @@ export function curve(P0, T, P3) {
   const A = Math.max(t1, t2)
   const B = Math.min(t1, t2)
 
-  const gamma = 4 * (Math.sqrt(2) - 1) / 3;
+  const kappa = 4 * (Math.sqrt(2) - 1) / 3;
 
-  const p = 1 - (1 - gamma) * Math.pow(2 * B / (A + B), 3 / 4)
+  const p = 1 - (1 - kappa) * Math.pow(2 * B / (A + B), 3 / 4)
 
   return p
 }
