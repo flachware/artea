@@ -23,6 +23,13 @@ export function length(v) {
   return Math.hypot(v.x, v.y)
 }
 
+export function dot(a, b) {
+  return (
+    a.x * b.x +
+    a.y * b.y
+  )
+}
+
 export function normalize(v) {
   const d = length(v)
 

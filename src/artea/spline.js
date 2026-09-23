@@ -215,13 +215,23 @@ function segmentGeometry(segment, index) {
   const b = length(d3)
   const K = d0.x * d3.y - d0.y * d3.x
 
+  /*
+   * A tangent arm of (near) zero length - T sitting on top of P0
+   * or P3 - is a degenerate but reachable editor state (e.g. right
+   * after converting two nodes to a curve, or while dragging a
+   * node through T's position). There is no meaningful Artea
+   * reference here (pA needs both arms to be positive), so this
+   * segment is excluded from the Artea composition entirely and
+   * falls back to a plain, always-valid midpoint split - see
+   * composeChain and buildSmoothComponents.
+   */
   if (
     !Number.isFinite(a) ||
     !Number.isFinite(b) ||
     a <= EPSILON ||
     b <= EPSILON
   ) {
-    throw new Error(`Segment ${index}: degenerate tangent geometry.`)
+    return { index, P0, T, P3, a, b, K, degenerate: true }
   }
 
   const r = a / b
@@ -333,7 +343,7 @@ function endpointScalesFromForm(R, S) {
  * Smooth joins
  * ================================================================ */
 
-function makeSmoothJoins(segments, closed) {
+function makeSmoothJoins(segments, closed, geometry) {
   const n = segments.length
   const joinCount = closed ? n : Math.max(0, n - 1)
   const smoothJoins = new Array(joinCount)
@@ -342,7 +352,9 @@ function makeSmoothJoins(segments, closed) {
     const next = (i + 1) % n
     smoothJoins[i] =
       segments[i].endNode === segments[next].startNode &&
-      segments[i].endNode.smooth === 'smooth'
+      segments[i].endNode.smooth === 'smooth' &&
+      !geometry[i].degenerate &&
+      !geometry[next].degenerate
   }
 
   return smoothJoins
@@ -841,16 +853,26 @@ export function spline(path) {
   }
 
   const geometry = segments.map(segmentGeometry)
-  const smoothJoins = makeSmoothJoins(segments, closed)
+  const smoothJoins = makeSmoothJoins(segments, closed, geometry)
   const components = buildSmoothComponents(geometry, smoothJoins, closed)
   const formsBySegment = new Array(segments.length)
 
   /*
    * Compose every smooth component independently. Each join's
    * alpha/beta split is an exact closed-form solution, so every
-   * component - open or closed - closes exactly.
+   * component - open or closed - closes exactly. A degenerate
+   * segment (T on top of P0 or P3 - see segmentGeometry) has no
+   * Artea reference to compose with, is always its own component
+   * (its joins are never smooth), and falls back directly to a
+   * plain midpoint split instead.
    */
   for (const component of components) {
+    if (component.indices.length === 1 && geometry[component.indices[0]].degenerate) {
+      const i = component.indices[0]
+      formsBySegment[i] = { segmentIndex: i, p0: 0.5, p3: 0.5 }
+      continue
+    }
+
     const { forms } = composeFormChain(geometry, component)
 
     for (const form of forms) {

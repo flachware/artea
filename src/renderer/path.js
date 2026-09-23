@@ -1,5 +1,7 @@
 import {
   sub,
+  dot,
+  determinant,
   normalize,
   intersectLines
 } from './vector.js'
@@ -178,6 +180,57 @@ export class Path {
     }
   }
 
+  /*
+   * Fraction of controlPoint along the
+   * line from startNode to endNode, or
+   * null if it doesn't lie on that line.
+   */
+  collinearFraction(
+    startNode,
+    controlPoint,
+    endNode
+  ) {
+    const along =
+      sub(
+        endNode,
+        startNode
+      )
+
+    const length =
+      Math.hypot(
+        along.x,
+        along.y
+      )
+
+    if (length < 1e-9) {
+      return null
+    }
+
+    const relative =
+      sub(
+        controlPoint,
+        startNode
+      )
+
+    const cross =
+      determinant(
+        along,
+        relative
+      )
+
+    if (
+      Math.abs(cross) / length >
+      1e-6 * Math.max(1, length)
+    ) {
+      return null
+    }
+
+    return (
+      dot(relative, along) /
+      (length * length)
+    )
+  }
+
   setControlPoint(
     controlPoint,
     node,
@@ -268,6 +321,13 @@ export class Path {
           return {
             segment,
 
+            collinear:
+              this.collinearFraction(
+                segment.startNode,
+                segment.controlPoint,
+                segment.endNode
+              ),
+
             ownTangent:
               this.getTangent(
                 node,
@@ -290,10 +350,50 @@ export class Path {
     touching.forEach(
       ({
         segment,
+        collinear,
         ownTangent,
         farNode,
         farTangent
       }) => {
+        /*
+         * T sits exactly on the line
+         * between the two nodes (e.g.
+         * right after converting a
+         * line segment to a curve).
+         *
+         * Keep it at the same fraction
+         * along that line instead of
+         * running it through the
+         * tangent-intersection logic,
+         * which is undefined here since
+         * both tangents point along the
+         * same line.
+         */
+        if (collinear !== null) {
+          const {
+            startNode,
+            endNode
+          } = segment
+
+          segment.controlPoint.x =
+            startNode.x +
+            collinear *
+            (
+              endNode.x -
+              startNode.x
+            )
+
+          segment.controlPoint.y =
+            startNode.y +
+            collinear *
+            (
+              endNode.y -
+              startNode.y
+            )
+
+          return
+        }
+
         const point =
           intersectLines(
             node,
