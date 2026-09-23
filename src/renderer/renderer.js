@@ -32,9 +32,14 @@ export class Renderer {
       pathData.set(path, this.renderPath(path))
 
       if (showHandles) {
+        /*
+         * Offcurve handles are rendered after node
+         * handles so they stay on top (and clickable)
+         * even when T coincides with a node.
+         */
         const segmentHandles = renderSegmentHandles(this.svg, path)
-        const offCurveHandles = renderOffCurveHandles(this.svg, path)
         const nodeHandles = renderNodeHandles(this.svg, path)
+        const offCurveHandles = renderOffCurveHandles(this.svg, path)
 
         handlesByPath.set(path, { nodeHandles, segmentHandles, offCurveHandles })
       }
