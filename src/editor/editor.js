@@ -45,6 +45,7 @@ export class Editor {
     window.addEventListener('keydown', (event) => this.handleKeyDown(event))
     window.addEventListener('keyup', (event) => this.handleKeyUp(event))
     window.addEventListener('resize', () => this.render())
+    window.addEventListener('blur', () => this.handleBlur())
 
     this.render()
   }
@@ -288,6 +289,24 @@ export class Editor {
     }
 
     if (event.key === ' ' && this.previewMode) {
+      this.previewMode = false
+      this.render()
+    }
+  }
+
+  /*
+   * Alt-tabbing (or otherwise losing focus)
+   * while Ctrl/Cmd or Space is held never
+   * delivers a keyup, so the modifier state
+   * would otherwise get stuck.
+   */
+  handleBlur() {
+    if (this.toolBeforeModifier) {
+      this.setTool(this.toolBeforeModifier)
+      this.toolBeforeModifier = null
+    }
+
+    if (this.previewMode) {
       this.previewMode = false
       this.render()
     }
