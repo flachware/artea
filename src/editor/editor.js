@@ -29,6 +29,7 @@ export class Editor {
     this.container.addEventListener('mousedown', (event) => this.handleMouseDown(event))
     window.addEventListener('keydown', (event) => this.handleKeyDown(event))
     window.addEventListener('keyup', (event) => this.handleKeyUp(event))
+    window.addEventListener('resize', () => this.render())
 
     this.render()
   }
