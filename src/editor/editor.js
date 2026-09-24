@@ -29,6 +29,7 @@ export class Editor {
     this.scene = new Scene(PATH_MODE, CURVE_MODE)
     this.renderer = new Renderer(container)
     this.currentPath = null
+    this.selectedPath = null
     this.selectedNode = null
     this.lastNodeClick = null
 
@@ -37,6 +38,7 @@ export class Editor {
       : []
 
     container.addEventListener('mousedown', (event) => this.handleMouseDown(event))
+    window.addEventListener('keydown', (event) => this.handleKeyDown(event))
 
     this.render()
   }
@@ -56,8 +58,9 @@ export class Editor {
       this.currentPath.selected = true
     }
 
-    this.currentPath.addNode(event.clientX, event.clientY)
+    const node = this.currentPath.addNode(event.clientX, event.clientY)
 
+    this.selectNode(this.currentPath, node)
     this.render()
   }
 
@@ -73,6 +76,7 @@ export class Editor {
     if (this.selectedNode) {
       this.selectedNode.selected = false
       this.selectedNode = null
+      this.selectedPath = null
       changed = true
     }
 
@@ -81,13 +85,41 @@ export class Editor {
     }
   }
 
-  selectNode(node) {
+  selectNode(path, node) {
     if (this.selectedNode) {
       this.selectedNode.selected = false
     }
 
+    this.selectedPath = path
     this.selectedNode = node
     node.selected = true
+  }
+
+  handleKeyDown(event) {
+    const deltas = {
+      ArrowLeft: { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 },
+      ArrowUp: { x: 0, y: -1 },
+      ArrowDown: { x: 0, y: 1 }
+    }
+
+    const delta = deltas[event.key]
+
+    if (!delta || !this.selectedNode || !this.selectedPath) {
+      return
+    }
+
+    event.preventDefault()
+
+    const step = event.shiftKey ? 10 : 1
+
+    this.selectedPath.moveNode(
+      this.selectedNode,
+      this.selectedNode.x + delta.x * step,
+      this.selectedNode.y + delta.y * step
+    )
+
+    this.render()
   }
 
   isDoubleClick(node) {
@@ -116,6 +148,7 @@ export class Editor {
 
           if (index === 0 && path.selected && (event.ctrlKey || event.metaKey)) {
             path.close()
+            this.selectNode(path, node)
             this.render()
             return
           }
@@ -126,7 +159,7 @@ export class Editor {
             return
           }
 
-          this.selectNode(node)
+          this.selectNode(path, node)
           this.render()
           this.dragNode(path, node, event)
         })
@@ -151,7 +184,7 @@ export class Editor {
         handle.addEventListener('mousedown', (event) => {
           event.stopPropagation()
 
-          this.selectNode(node)
+          this.selectNode(path, node)
           this.render()
           this.dragNode(path, node, event)
         })

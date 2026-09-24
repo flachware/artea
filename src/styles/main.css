@@ -1,3 +1,8 @@
+:root {
+  --space-md: 16px;
+  --space-lg: 24px;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -17,8 +22,11 @@ body {
 
 .panel {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: var(--space-lg);
+  right: var(--space-lg);
+  width: 320px;
+  padding: var(--space-md);
+  background-color: #f6f6f6
 }
 
 .info {
