@@ -945,6 +945,7 @@ export class Scene {
     this.paths = []
     this.pathMode = pathMode
     this.curveMode = curveMode
+    this.verticalStretch = 1
   }
 
   addPath() {
@@ -959,7 +960,8 @@ export class Scene {
     return CURVE_MODE[this.curveMode](
       p0,
       p1,
-      p2
+      p2,
+      this.verticalStretch
     )
   }
 

@@ -9,6 +9,7 @@
 
 body {
   margin: 0;
+  font-family: system-ui;
 }
 
 .editor {
@@ -27,6 +28,10 @@ body {
   width: 320px;
   padding: var(--space-md);
   background-color: #f6f6f6
+}
+
+.slider {
+
 }
 
 .info {

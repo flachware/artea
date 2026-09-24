@@ -76,7 +76,13 @@ export class Renderer {
 
   renderSpline(path) {
     try {
-      return { d: SPLINE_MODE[path.scene.curveMode](path), failed: false }
+      return {
+        d: SPLINE_MODE[path.scene.curveMode](
+          path,
+          path.scene.verticalStretch
+        ),
+        failed: false
+      }
     } catch (error) {
       console.warn('Spline construction failed, falling back to curves:', error)
 

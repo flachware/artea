@@ -129,6 +129,7 @@
 
 import { sub, add, mul, length } from '../renderer/vector.js'
 import { clamp, cbrt, uniqueNumbers } from '../renderer/scalar.js'
+import { curve } from './curve.js'
 
 const EPSILON = 1e-12
 const ROOT_EPSILON = 1e-10
@@ -136,12 +137,16 @@ const ROOT_EPSILON = 1e-10
  * The decoupled currency only approximates real curvature
  * continuity (see file header); randomized stress testing across
  * thousands of open/closed shapes, including deliberately extreme
- * segment ratios, never exceeded ~2.6% relative mismatch at a
- * join. This is a sanity ceiling to catch genuine bugs/degenerate
- * geometry, not a precision target - ordinary output sits far
- * below it.
+ * segment ratios, never exceeded ~2.6% relative mismatch at a join
+ * for the plain (v=1) curve. artea/curve.js's virtual vertical
+ * stretch (v) deliberately pulls pA away from the real-curvature-
+ * optimal value for perceptual correction, which can push this
+ * mismatch further - randomized testing across v in [1,2] put the
+ * worst case at ~11-13%. This is a sanity ceiling to catch genuine
+ * bugs/degenerate geometry, not a precision target - ordinary
+ * output sits far below it.
  */
-const FORM_EPSILON = 0.1
+const FORM_EPSILON = 0.2
 const ARTEA_GAMMA = (4 * (Math.sqrt(2) - 1)) / 3
 const CIRCLE_Q = (1 - ARTEA_GAMMA) / (ARTEA_GAMMA * ARTEA_GAMMA)
 const CIRCLE_S = 1 / CIRCLE_Q
@@ -175,32 +180,10 @@ function parameterFromQ(q) {
 
 
 /* ================================================================
- * Artea reference
- * ================================================================ */
-
-function arteaParameter(a, b) {
-  const A = Math.max(a, b)
-  const B = Math.min(a, b)
-
-  if (!Number.isFinite(A) || !Number.isFinite(B) || !(A > 0) || !(B > 0)) {
-    throw new Error(`Invalid segment lengths: a=${a}, b=${b}`)
-  }
-
-  const pA = 1 - (1 - ARTEA_GAMMA) * Math.pow((2 * B) / (A + B), 3 / 4)
-
-  if (!Number.isFinite(pA) || !(pA > 0) || !(pA < 1)) {
-    throw new Error(`Invalid Artea parameter: ${pA}`)
-  }
-
-  return pA
-}
-
-
-/* ================================================================
  * Segment geometry
  * ================================================================ */
 
-function segmentGeometry(segment, index) {
+function segmentGeometry(segment, index, v) {
   const P0 = segment.startNode
   const T = segment.controlPoint
   const P3 = segment.endNode
@@ -236,7 +219,21 @@ function segmentGeometry(segment, index) {
 
   const r = a / b
   const s = Math.sqrt(a * b)
-  const pA = arteaParameter(a, b)
+
+  /*
+   * pA routes through artea/curve.js itself (the single curve's
+   * own optimized parameter) rather than a separate copy of the
+   * same formula, using the real points so a virtual vertical
+   * stretch (curve.js's v) affects the reference here exactly as
+   * it does for the single curve - a, b, K and everything derived
+   * from them below stay real/unstretched.
+   */
+  const pA = curve(P0, T, P3, v)
+
+  if (!Number.isFinite(pA) || !(pA > 0) || !(pA < 1)) {
+    throw new Error(`Invalid Artea parameter: ${pA}`)
+  }
+
   const qA = qFromParameter(pA)
 
   const Fs = (1 / s) * Math.pow(r, -1.5)
@@ -839,7 +836,7 @@ function curvesToPath(curves, closed) {
  * Main
  * ================================================================ */
 
-export function spline(path) {
+export function spline(path, v) {
   const segments = path.getSegments()
   if (!segments.length) return ''
 
@@ -852,7 +849,9 @@ export function spline(path) {
     if (!segments[i].controlPoint) return ''
   }
 
-  const geometry = segments.map(segmentGeometry)
+  const geometry = segments.map(
+    (segment, index) => segmentGeometry(segment, index, v)
+  )
   const smoothJoins = makeSmoothJoins(segments, closed, geometry)
   const components = buildSmoothComponents(geometry, smoothJoins, closed)
   const formsBySegment = new Array(segments.length)
@@ -930,8 +929,6 @@ export {
   ARTEA_GAMMA,
   CIRCLE_Q,
   CIRCLE_S,
-
-  arteaParameter,
 
   qFromParameter,
   parameterFromQ,

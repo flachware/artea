@@ -1,25 +1,12 @@
 import { Scene } from '../scene.js'
 import { Renderer } from '../renderer/renderer.js'
-import { Info } from './ui/info.js'
-import { PathModeToggle } from './ui/path-mode-toggle.js'
-import { CurveModeToggle } from './ui/curve-mode-toggle.js'
+import { ToggleButton } from './ui/toggle-button.js'
+import { Slider } from './ui/slider.js'
+import { Readout } from './ui/readout.js'
 
 const DOUBLE_CLICK_TIMEOUT = 400
 const PATH_MODE = 'spline'
 const CURVE_MODE = 'artea'
-
-/*
- * UI components mounted into .panel. Each
- * one is a class taking (container, editor)
- * and exposing update(editor), called after
- * every change (see render()). Add further
- * components here to wire them in.
- */
-const UI_COMPONENTS = [
-  PathModeToggle,
-  CurveModeToggle,
-  Info
-]
 
 export class Editor {
   constructor(selector) {
@@ -33,9 +20,7 @@ export class Editor {
     this.selectedNode = null
     this.lastNodeClick = null
 
-    this.components = panel
-      ? UI_COMPONENTS.map((Component) => new Component(panel, this))
-      : []
+    this.components = panel ? this.createUIComponents(panel) : []
 
     container.addEventListener('mousedown', (event) => this.handleMouseDown(event))
     window.addEventListener('keydown', (event) => this.handleKeyDown(event))
@@ -43,8 +28,75 @@ export class Editor {
     this.render()
   }
 
+  createUIComponents(panel) {
+    return [
+      {
+        component: new ToggleButton(panel, {
+          className: 'spline-toggle',
+          onClick: () => {
+            this.scene.pathMode =
+              this.scene.pathMode === 'curve' ? 'spline' : 'curve'
+
+            this.render()
+          }
+        }),
+
+        getValue: () =>
+          this.scene.pathMode === 'curve' ? 'Spline' : 'Curve'
+      },
+
+      {
+        component: new ToggleButton(panel, {
+          className: 'artea-toggle',
+          onClick: () => {
+            this.scene.curveMode =
+              this.scene.curveMode === 'elliptic' ? 'artea' : 'elliptic'
+
+            this.render()
+          }
+        }),
+
+        getValue: () =>
+          this.scene.curveMode === 'elliptic' ? 'Artea' : 'Circle'
+      },
+
+      {
+        component: new Slider(panel, {
+          className: 'anisotropy',
+          label: 'Anisotropy',
+          min: 0,
+          max: 100,
+          step: 1,
+          formatLabel: (percent) => `${percent}%`,
+          onChange: (percent) => {
+            this.scene.verticalStretch = 1 + percent / 100
+
+            this.render()
+          }
+        }),
+
+        getValue: () =>
+          Math.round((this.scene.verticalStretch - 1) * 100)
+      },
+
+      {
+        component: new Readout(panel, { className: 'info' }),
+
+        getValue: () => {
+          const node = this.selectedNode
+
+          return node
+            ? `x: ${Math.round(node.x)}, y: ${Math.round(node.y)}`
+            : ''
+        }
+      }
+    ]
+  }
+
   updateUI() {
-    this.components.forEach((component) => component.update(this))
+    this.components.forEach(({ component, getValue }) => {
+      component.update(getValue())
+    })
   }
 
   handleMouseDown(event) {
