@@ -21,6 +21,7 @@ export class Editor {
     this.selectedNode = null
     this.lastNodeClick = null
     this.toolBeforeModifier = null
+    this.previewMode = false
 
     this.components = panel ? this.createUIComponents(panel) : []
 
@@ -203,6 +204,13 @@ export class Editor {
       this.setTool('draw')
     }
 
+    if (event.key === ' ' && !this.previewMode) {
+      event.preventDefault()
+      this.previewMode = true
+      this.render()
+      return
+    }
+
     const deltas = {
       ArrowLeft: { x: -1, y: 0 },
       ArrowRight: { x: 1, y: 0 },
@@ -238,6 +246,11 @@ export class Editor {
       this.setTool(this.toolBeforeModifier)
       this.toolBeforeModifier = null
     }
+
+    if (event.key === ' ' && this.previewMode) {
+      this.previewMode = false
+      this.render()
+    }
   }
 
   isDoubleClick(node) {
@@ -252,7 +265,9 @@ export class Editor {
   }
 
   render() {
-    const handlesByPath = this.renderer.render(this.scene, true)
+    const handlesByPath = this.renderer.render(this.scene, {
+      preview: this.previewMode
+    })
 
     handlesByPath.forEach(({ nodeHandles, segmentHandles, offCurveHandles }, path) => {
       const onCurveNodes = path.nodes.filter((node) => node.type !== 'offcurve')

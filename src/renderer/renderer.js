@@ -73,12 +73,19 @@ export class Renderer {
     this.root.appendChild(line)
   }
 
-  render(scene, showHandles) {
+  /*
+   * In preview mode, the path/curve itself
+   * is rendered as a solid filled shape and
+   * everything else - editor UI: handles,
+   * tangents, axes, bezier point markers -
+   * is left out entirely.
+   */
+  render(scene, { preview = false } = {}) {
     this.root.replaceChildren()
     this.updateTransform()
-    this.renderAxes()
 
-    if (showHandles) {
+    if (!preview) {
+      this.renderAxes()
       scene.paths.forEach((path) => renderTangents(this.root, path))
     }
 
@@ -87,9 +94,9 @@ export class Renderer {
     const pathData = new Map()
 
     scene.paths.forEach((path) => {
-      pathData.set(path, this.renderPath(path))
+      pathData.set(path, this.renderPath(path, preview))
 
-      if (showHandles) {
+      if (!preview) {
         /*
          * Offcurve handles are rendered after node
          * handles so they stay on top (and clickable)
@@ -103,14 +110,16 @@ export class Renderer {
       }
     })
 
-    scene.paths.forEach((path) => {
-      this.renderBezierPointMarkers(pathData.get(path))
-    })
+    if (!preview) {
+      scene.paths.forEach((path) => {
+        this.renderBezierPointMarkers(pathData.get(path))
+      })
+    }
 
     return handlesByPath
   }
 
-  renderPath(path) {
+  renderPath(path, preview) {
     if (path.nodes.length === 0) {
       return ''
     }
@@ -123,9 +132,15 @@ export class Renderer {
     const element = document.createElementNS(SVG_NS, 'path')
 
     element.setAttribute('d', d)
-    element.setAttribute('fill', 'none')
-    element.setAttribute('stroke', failed ? 'red' : 'black')
-    element.setAttribute('stroke-width', '1.1')
+
+    if (preview) {
+      element.setAttribute('fill', '#000')
+      element.setAttribute('stroke', 'none')
+    } else {
+      element.setAttribute('fill', 'none')
+      element.setAttribute('stroke', failed ? 'red' : 'black')
+      element.setAttribute('stroke-width', '1.1')
+    }
 
     this.root.appendChild(element)
 
