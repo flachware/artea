@@ -1,5 +1,6 @@
 import { Scene } from '../scene.js'
 import { Renderer } from '../renderer/renderer.js'
+import { computeOrigin, screenToLogical } from '../renderer/coordinates.js'
 import { RadioGroup } from './ui/radio-group.js'
 import { Slider } from './ui/slider.js'
 import { Readout } from './ui/readout.js'
@@ -30,6 +31,15 @@ export class Editor {
     window.addEventListener('keyup', (event) => this.handleKeyUp(event))
 
     this.render()
+  }
+
+  toLogical(clientX, clientY) {
+    const origin = computeOrigin(
+      this.container.clientWidth,
+      this.container.clientHeight
+    )
+
+    return screenToLogical(origin, clientX, clientY)
   }
 
   setTool(tool) {
@@ -145,7 +155,8 @@ export class Editor {
       this.currentPath.selected = true
     }
 
-    const node = this.currentPath.addNode(event.clientX, event.clientY)
+    const point = this.toLogical(event.clientX, event.clientY)
+    const node = this.currentPath.addNode(point.x, point.y)
 
     this.selectNode(this.currentPath, node)
     this.render()
@@ -194,8 +205,8 @@ export class Editor {
     const deltas = {
       ArrowLeft: { x: -1, y: 0 },
       ArrowRight: { x: 1, y: 0 },
-      ArrowUp: { x: 0, y: -1 },
-      ArrowDown: { x: 0, y: 1 }
+      ArrowUp: { x: 0, y: 1 },
+      ArrowDown: { x: 0, y: -1 }
     }
 
     const delta = deltas[event.key]
@@ -211,7 +222,8 @@ export class Editor {
     this.selectedPath.moveNode(
       this.selectedNode,
       this.selectedNode.x + delta.x * step,
-      this.selectedNode.y + delta.y * step
+      this.selectedNode.y + delta.y * step,
+      { snap: false }
     )
 
     this.render()
@@ -318,7 +330,9 @@ export class Editor {
         dragging = true
       }
 
-      path.moveNode(node, event.clientX, event.clientY)
+      const point = this.toLogical(event.clientX, event.clientY)
+
+      path.moveNode(node, point.x, point.y)
       this.render()
     }
 

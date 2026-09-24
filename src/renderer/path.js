@@ -287,7 +287,10 @@ export class Path {
   moveNode(
     node,
     x,
-    y
+    y,
+    {
+      snap = true
+    } = {}
   ) {
     /*
      * T point / offcurve point.
@@ -312,13 +315,15 @@ export class Path {
           point
         )
 
-        point = this.snapPoint(
-          point,
-          [
-            segment.startNode,
-            segment.endNode
-          ]
-        )
+        if (snap) {
+          point = this.snapPoint(
+            point,
+            [
+              segment.startNode,
+              segment.endNode
+            ]
+          )
+        }
       }
 
       node.x = point.x
@@ -415,13 +420,18 @@ export class Path {
       )
 
     const point =
-      this.snapPoint(
-        {
-          x,
-          y
-        },
-        candidates
-      )
+      snap
+        ? this.snapPoint(
+            {
+              x,
+              y
+            },
+            candidates
+          )
+        : {
+            x,
+            y
+          }
 
     node.x = point.x
     node.y = point.y
