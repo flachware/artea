@@ -1,9 +1,8 @@
 import {
   sub,
+  add,
   dot,
-  determinant,
-  normalize,
-  intersectLines
+  mul
 } from './vector.js'
 
 const SNAP_THRESHOLD = 10
@@ -47,63 +46,59 @@ export class Path {
   toggleSmooth(node) {
     if (node.smooth === 'smooth') {
       node.smooth = null
+      node.smoothDirection = null
       this.scene.constrain(this)
       return
     }
 
-    let segments = this.getSegments()
+    const segments = this.getSegments()
 
-    let adjacent = segments.filter(
+    const adjacent = segments.filter(
       segment =>
         segment.startNode === node ||
         segment.endNode === node
     )
 
-    if (!adjacent.length) {
+    if (adjacent.length < 2) {
       return
     }
 
+    const bothCurves = adjacent.every(
+      segment =>
+        segment.controlPoint
+    )
+
     /*
-     * A smooth node needs a curve segment
-     * on both sides.
+     * Otherwise: exactly one side is a
+     * curve and the other a line. This is
+     * only allowed when the curve side's
+     * far endpoint is already smooth,
+     * i.e. this node is the outer end of
+     * an established multi-segment curve
+     * run, not a lone curve flanked by
+     * two unrelated lines.
      */
-    const needsCurve = adjacent.filter(
+    const curveSegment = adjacent.find(
       segment =>
-        !segment.controlPoint
+        segment.controlPoint
     )
 
-    needsCurve.forEach(segment => {
-      const currentSegments =
-        this.getSegments()
-
-      const index =
-        currentSegments.findIndex(
-          current =>
-            current.startNode ===
-              segment.startNode &&
-            current.endNode ===
-              segment.endNode
-        )
-
-      if (index !== -1) {
-        this.convertSegmentToCurve(index)
-      }
-    })
-
-    segments = this.getSegments()
-
-    adjacent = segments.filter(
-      segment =>
-        segment.startNode === node ||
-        segment.endNode === node
-    )
-
-    if (
-      adjacent.length < 2 ||
+    const mixedIntoEstablishedRun =
+      adjacent.length === 2 &&
+      curveSegment &&
       adjacent.some(
         segment =>
           !segment.controlPoint
-      )
+      ) &&
+      (
+        curveSegment.startNode === node
+          ? curveSegment.endNode
+          : curveSegment.startNode
+      ).smooth === 'smooth'
+
+    if (
+      !bothCurves &&
+      !mixedIntoEstablishedRun
     ) {
       return
     }
@@ -113,137 +108,180 @@ export class Path {
     this.scene.constrain(this)
   }
 
-  getTangent(node, segment) {
-    const other =
-      segment.startNode === node
-        ? segment.endNode
-        : segment.startNode
-
-    if (segment.controlPoint) {
-      const direction =
-        normalize(
-          sub(
-            segment.controlPoint,
-            node
-          )
-        )
-
-      if (!direction) {
-        return {
-          dir: {
-            x: 0,
-            y: 0
-          },
-          dist: 1
-        }
-      }
-
-      return {
-        dir: direction,
-
-        dist:
-          Math.hypot(
-            segment.controlPoint.x -
-              node.x,
-            segment.controlPoint.y -
-              node.y
-          ) || 1
-      }
-    }
-
-    const direction =
-      normalize(
-        sub(
-          other,
-          node
-        )
-      )
-
-    if (!direction) {
-      return {
-        dir: {
-          x: 0,
-          y: 0
-        },
-        dist: 1
-      }
-    }
-
-    return {
-      dir: direction,
-
-      dist:
-        Math.hypot(
-          other.x - node.x,
-          other.y - node.y
-        ) / 2 || 1
-    }
-  }
-
   /*
-   * Fraction of controlPoint along the
-   * line from startNode to endNode, or
-   * null if it doesn't lie on that line.
+   * Expresses controlPoint in the local
+   * frame of the segment (node ->
+   * farNode): `a` is the fraction along
+   * that axis, `b` the fraction along
+   * its perpendicular. Reapplying this
+   * frame after node or farNode moves
+   * keeps the control point's position
+   * relative to the segment consistent
+   * (same shape, scaled/rotated/
+   * translated with the segment)
+   * instead of preserving an absolute
+   * tangent direction, which can flip
+   * to the wrong side on a large move.
+   *
+   * Returns null if node and farNode
+   * coincide (no frame to express it
+   * in).
    */
-  collinearFraction(
-    startNode,
+  localFrame(
+    node,
     controlPoint,
-    endNode
+    farNode
   ) {
     const along =
       sub(
-        endNode,
-        startNode
+        farNode,
+        node
       )
 
-    const length =
-      Math.hypot(
-        along.x,
-        along.y
-      )
+    const lengthSquared =
+      dot(along, along)
 
-    if (length < 1e-9) {
+    if (lengthSquared < 1e-18) {
       return null
+    }
+
+    const perpendicular = {
+      x: -along.y,
+      y: along.x
     }
 
     const relative =
       sub(
         controlPoint,
-        startNode
+        node
       )
 
-    const cross =
-      determinant(
-        along,
-        relative
-      )
+    return {
+      a:
+        dot(relative, along) /
+        lengthSquared,
 
-    if (
-      Math.abs(cross) / length >
-      1e-6 * Math.max(1, length)
-    ) {
-      return null
+      b:
+        dot(relative, perpendicular) /
+        lengthSquared
     }
-
-    return (
-      dot(relative, along) /
-      (length * length)
-    )
   }
 
-  setControlPoint(
-    controlPoint,
+  applyLocalFrame(
     node,
-    dir,
-    dist
+    farNode,
+    frame
   ) {
-    controlPoint.x =
-      node.x +
-      dir.x * dist
+    const along =
+      sub(
+        farNode,
+        node
+      )
 
-    controlPoint.y =
-      node.y +
-      dir.y * dist
+    const perpendicular = {
+      x: -along.y,
+      y: along.x
+    }
+
+    return {
+      x:
+        node.x +
+        frame.a * along.x +
+        frame.b * perpendicular.x,
+
+      y:
+        node.y +
+        frame.a * along.y +
+        frame.b * perpendicular.y
+    }
+  }
+
+  /*
+   * If dragging this handle would push it
+   * past one of its own segment's smooth
+   * endpoints (onto the wrong side of that
+   * node's established tangent direction),
+   * bounce it back instead: as the raw
+   * drag target crosses the node, the
+   * handle reflects off it rather than
+   * flipping the node's tangent to an
+   * incompatible sense (same behavior as
+   * Glyphs). Keeps a smooth node's tangent
+   * from ever landing in a configuration
+   * that's geometrically impossible to
+   * reconcile with its OTHER neighbor.
+   */
+  reflectHandle(
+    segment,
+    point
+  ) {
+    let reflected = point
+
+    if (
+      segment.startNode.smooth ===
+        'smooth' &&
+      segment.startNode.smoothDirection
+    ) {
+      reflected =
+        this.reflectAcrossNode(
+          segment.startNode,
+          segment.startNode
+            .smoothDirection,
+          reflected
+        )
+    }
+
+    if (
+      segment.endNode.smooth ===
+        'smooth' &&
+      segment.endNode.smoothDirection
+    ) {
+      reflected =
+        this.reflectAcrossNode(
+          segment.endNode,
+          mul(
+            segment.endNode
+              .smoothDirection,
+            -1
+          ),
+          reflected
+        )
+    }
+
+    return reflected
+  }
+
+  /*
+   * Reflects point off node along axis:
+   * ahead of the node, it passes through
+   * unchanged; past it (projection goes
+   * negative), it bounces back out to the
+   * same distance on the near side
+   * instead of flipping the node's
+   * tangent sense. Right at the node is
+   * left alone here - that's fine to
+   * pass through/snap onto; only actually
+   * crossing past it triggers the bounce.
+   */
+  reflectAcrossNode(
+    node,
+    axis,
+    point
+  ) {
+    const relative =
+      sub(point, node)
+
+    const t =
+      dot(relative, axis)
+
+    if (t >= 0) {
+      return point
+    }
+
+    return sub(
+      point,
+      mul(axis, 2 * t)
+    )
   }
 
   moveNode(
@@ -263,20 +301,25 @@ export class Path {
             s.controlPoint === node
         )
 
-      const point =
-        segment
-          ? this.snapPoint(
-              {
-                x,
-                y
-              },
-              segment.startNode,
-              segment.endNode
-            )
-          : {
-              x,
-              y
-            }
+      let point = {
+        x,
+        y
+      }
+
+      if (segment) {
+        point = this.reflectHandle(
+          segment,
+          point
+        )
+
+        point = this.snapPoint(
+          point,
+          [
+            segment.startNode,
+            segment.endNode
+          ]
+        )
+      }
 
       node.x = point.x
       node.y = point.y
@@ -302,6 +345,11 @@ export class Path {
     const segments =
       this.getSegments()
 
+    const nodeBefore = {
+      x: node.x,
+      y: node.y
+    }
+
     const touching =
       segments
         .filter(
@@ -320,152 +368,168 @@ export class Path {
 
           return {
             segment,
-
-            collinear:
-              this.collinearFraction(
-                segment.startNode,
-                segment.controlPoint,
-                segment.endNode
-              ),
-
-            ownTangent:
-              this.getTangent(
-                node,
-                segment
-              ),
-
-            farNode,
-
-            farTangent:
-              this.getTangent(
-                farNode,
-                segment
-              )
+            farNode
           }
         })
+        .filter(({ farNode }) =>
+          /*
+           * If this node isn't smooth but
+           * the far node is, the far
+           * node's own smoothness fully
+           * owns this segment's T (via
+           * preserveHandlePosition in
+           * scene.constrain() below) and
+           * would just discard anything
+           * set here. Leave it alone so
+           * only one mechanism decides.
+           *
+           * If this node IS smooth, keep
+           * updating it here too: even
+           * though its own final T gets
+           * recomputed by scene.constrain(),
+           * that computation reads T from
+           * neighboring segments, so it
+           * still needs a sane value.
+           */
+          node.smooth === 'smooth' ||
+          farNode.smooth !== 'smooth'
+        )
+        .map(({ segment, farNode }) => ({
+          segment,
 
-    node.x = x
-    node.y = y
+          farNode,
+
+          frame:
+            this.localFrame(
+              node,
+              segment.controlPoint,
+              farNode
+            )
+        }))
+
+    const candidates =
+      this.nodes.filter(
+        candidate =>
+          candidate !== node &&
+          candidate.type !== 'offcurve'
+      )
+
+    const point =
+      this.snapPoint(
+        {
+          x,
+          y
+        },
+        candidates
+      )
+
+    node.x = point.x
+    node.y = point.y
 
     touching.forEach(
       ({
         segment,
-        collinear,
-        ownTangent,
         farNode,
-        farTangent
+        frame
       }) => {
         /*
-         * T sits exactly on the line
-         * between the two nodes (e.g.
-         * right after converting a
-         * line segment to a curve).
-         *
-         * Keep it at the same fraction
-         * along that line instead of
-         * running it through the
-         * tangent-intersection logic,
-         * which is undefined here since
-         * both tangents point along the
-         * same line.
+         * node and farNode coincided
+         * before the move (no frame to
+         * express T in). Just carry T
+         * along by the same delta.
          */
-        if (collinear !== null) {
-          const {
-            startNode,
-            endNode
-          } = segment
+        if (!frame) {
+          segment.controlPoint.x +=
+            node.x - nodeBefore.x
 
-          segment.controlPoint.x =
-            startNode.x +
-            collinear *
-            (
-              endNode.x -
-              startNode.x
-            )
-
-          segment.controlPoint.y =
-            startNode.y +
-            collinear *
-            (
-              endNode.y -
-              startNode.y
-            )
+          segment.controlPoint.y +=
+            node.y - nodeBefore.y
 
           return
         }
 
-        const point =
-          intersectLines(
+        const moved =
+          this.applyLocalFrame(
             node,
-            ownTangent.dir,
             farNode,
-            farTangent.dir
+            frame
           )
 
-        if (point) {
-          segment.controlPoint.x =
-            point.x
+        segment.controlPoint.x =
+          moved.x
 
-          segment.controlPoint.y =
-            point.y
-
-          return
-        }
-
-        this.setControlPoint(
-          segment.controlPoint,
-          node,
-          ownTangent.dir,
-          ownTangent.dist
-        )
+        segment.controlPoint.y =
+          moved.y
       }
     )
 
     /*
-     * Then apply smooth constraints.
+     * Then re-align every smooth node's
+     * tangent (not just the ones directly
+     * touching this node): a mixed
+     * smooth node elsewhere may depend on
+     * a line segment that has an endpoint
+     * here and just changed direction.
      */
-    this.scene.constrain(
-      this,
-      node
-    )
+    this.scene.constrain(this)
   }
 
   snapPoint(
     point,
-    nodeA,
-    nodeB
+    candidates
   ) {
     const snapped = {
       x: point.x,
       y: point.y
     }
 
-    if (
-      Math.abs(
-        point.x - nodeA.x
-      ) < SNAP_THRESHOLD
-    ) {
-      snapped.x = nodeA.x
-    } else if (
-      Math.abs(
-        point.x - nodeB.x
-      ) < SNAP_THRESHOLD
-    ) {
-      snapped.x = nodeB.x
+    let bestX = null
+    let bestY = null
+
+    candidates.forEach(candidate => {
+      const dx =
+        Math.abs(
+          point.x - candidate.x
+        )
+
+      if (
+        dx < SNAP_THRESHOLD &&
+        (
+          !bestX ||
+          dx < bestX.distance
+        )
+      ) {
+        bestX = {
+          distance: dx,
+          value: candidate.x
+        }
+      }
+
+      const dy =
+        Math.abs(
+          point.y - candidate.y
+        )
+
+      if (
+        dy < SNAP_THRESHOLD &&
+        (
+          !bestY ||
+          dy < bestY.distance
+        )
+      ) {
+        bestY = {
+          distance: dy,
+          value: candidate.y
+        }
+      }
+    })
+
+    if (bestX) {
+      snapped.x = bestX.value
     }
 
-    if (
-      Math.abs(
-        point.y - nodeA.y
-      ) < SNAP_THRESHOLD
-    ) {
-      snapped.y = nodeA.y
-    } else if (
-      Math.abs(
-        point.y - nodeB.y
-      ) < SNAP_THRESHOLD
-    ) {
-      snapped.y = nodeB.y
+    if (bestY) {
+      snapped.y = bestY.value
     }
 
     return snapped

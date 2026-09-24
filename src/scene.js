@@ -9,6 +9,19 @@ const CURVE_MODE = {
 
 const EPSILON = 1e-9
 
+/*
+ * If the tangent intersection point for a
+ * both-smooth segment lands closer to a
+ * node than this fraction of the segment's
+ * own chord length, the tangent length has
+ * effectively collapsed to zero there (its
+ * direction becomes undefined). That's a
+ * correctness bug, not just an aesthetic
+ * one: spline.js treats near-zero tangent
+ * length as degenerate geometry.
+ */
+const MIN_HANDLE_DISTANCE_FACTOR = 0.05
+
 function sub(a, b) {
   return {
     x: a.x - b.x,
@@ -32,6 +45,10 @@ function mul(a, s) {
 
 function length(v) {
   return Math.hypot(v.x, v.y)
+}
+
+function dot(a, b) {
+  return a.x * b.x + a.y * b.y
 }
 
 function normalize(v) {
@@ -216,22 +233,119 @@ function getExistingDirection(segments, path, node) {
   return direction || directions[0]
 }
 
-function getNodeDirection(segments, path, node) {
-  const existing = getExistingDirection(
-    segments,
-    path,
-    node
-  )
+/*
+ * If exactly one of the two adjacent
+ * segments is a straight line, its
+ * direction is fixed (a line has no
+ * tangent to bend) and takes priority:
+ * the curve side is the one that must
+ * be aligned to it, not the other way
+ * around.
+ *
+ * path.js only allows a node into this
+ * mixed configuration when the curve
+ * side's far endpoint is already smooth
+ * (i.e. it's the outer end of an
+ * established multi-segment curve run),
+ * so this only ever fires there.
+ */
+function getMixedNeighborDirection(
+  segments,
+  path,
+  node
+) {
+  const { incoming, outgoing } =
+    getAdjacentSegments(segments, path, node)
 
-  if (existing) {
-    return existing
+  if (!incoming || !outgoing) {
+    return null
   }
 
-  return getChordDirection(
+  const incomingIsLine = !incoming.controlPoint
+  const outgoingIsLine = !outgoing.controlPoint
+
+  if (incomingIsLine === outgoingIsLine) {
+    return null
+  }
+
+  /*
+   * Direction convention: pointing
+   * forward, in the path's direction
+   * of travel through node (matching
+   * getExistingDirection above).
+   */
+  if (incomingIsLine) {
+    const other =
+      incoming.startNode === node
+        ? incoming.endNode
+        : incoming.startNode
+
+    return normalize(
+      sub(node, other)
+    )
+  }
+
+  const other =
+    outgoing.startNode === node
+      ? outgoing.endNode
+      : outgoing.startNode
+
+  return normalize(
+    sub(other, node)
+  )
+}
+
+/*
+ * A smooth node's tangent direction is a
+ * persisted property of that node, not
+ * something recomputed from its neighbors
+ * every time anything nearby moves -
+ * otherwise moving one node would rotate
+ * every other smooth node's tangent along
+ * the way (each one partly derives its
+ * direction from the very control point
+ * that just moved). It's set once here
+ * (when the node has none yet) and
+ * updated only when the user explicitly
+ * drags one of ITS OWN handles (see
+ * constrainMovedHandle). A mixed node is
+ * the one deliberate exception: its
+ * direction is tied to a line that can
+ * legitimately still be moving, so it's
+ * always read fresh.
+ */
+function getNodeDirection(segments, path, node) {
+  const mixed = getMixedNeighborDirection(
     segments,
     path,
     node
   )
+
+  if (mixed) {
+    return mixed
+  }
+
+  if (node.smoothDirection) {
+    return node.smoothDirection
+  }
+
+  const direction =
+    getExistingDirection(
+      segments,
+      path,
+      node
+    ) ||
+    getChordDirection(
+      segments,
+      path,
+      node
+    )
+
+  if (direction) {
+    node.smoothDirection = direction
+  }
+
+  return direction
 }
 
 /*
@@ -269,6 +383,140 @@ function preserveHandlePosition(
   )
 }
 
+/*
+ * Both nodes smooth: the two tangents
+ * intersect at T, which is the segment's
+ * shared tangent intersection point - but
+ * if that intersection collapses onto one
+ * of the two nodes (tangent length -> 0,
+ * direction undefined there), fall back to
+ * only honoring the OTHER node's (still
+ * reliable) direction, exactly like the
+ * single-sided cases below.
+ *
+ * Shared by constrainSegment (the general
+ * pass) and constrainMovedHandle (dragging
+ * a handle directly), which hits the same
+ * "both ends smooth" shape but for the
+ * SIBLING segment, not the one whose
+ * handle was actually moved.
+ */
+function resolveBothSmoothSegment(
+  segment,
+  directions,
+  preferredNode = null
+) {
+  const startDirection = directions.get(
+    segment.startNode
+  )
+
+  const endDirection = directions.get(
+    segment.endNode
+  )
+
+  const point = intersectLines(
+    segment.startNode,
+    startDirection,
+    segment.endNode,
+    endDirection
+  )
+
+  const chordLength = length(
+    sub(segment.endNode, segment.startNode)
+  )
+
+  const minDistance =
+    MIN_HANDLE_DISTANCE_FACTOR * chordLength
+
+  /*
+   * Signed distance of the point along
+   * each node's OWN forward direction:
+   * negative (or too small) means the
+   * point isn't actually ahead of that
+   * node in its tangent direction - it's
+   * either too close (tangent length ->
+   * 0) or on the wrong side entirely
+   * (mirrored, a visible cusp), which is
+   * just as invalid. A parallel/missing
+   * intersection (point === null) counts
+   * as invalid on both sides.
+   */
+  const startProjection =
+    point &&
+    dot(
+      sub(point, segment.startNode),
+      startDirection
+    )
+
+  const endProjection =
+    point &&
+    -dot(
+      sub(point, segment.endNode),
+      endDirection
+    )
+
+  const startInvalid =
+    !point || startProjection < minDistance
+
+  const endInvalid =
+    !point || endProjection < minDistance
+
+  if (!startInvalid && !endInvalid) {
+    setPoint(
+      segment.controlPoint,
+      point
+    )
+
+    return
+  }
+
+  const preserveStart = () =>
+    preserveHandlePosition(
+      segment,
+      segment.startNode,
+      startDirection
+    )
+
+  const preserveEnd = () =>
+    preserveHandlePosition(
+      segment,
+      segment.endNode,
+      endDirection && mul(endDirection, -1)
+    )
+
+  /*
+   * A caller-marked authoritative node
+   * (e.g. the one just dragged) always
+   * wins outright once anything here is
+   * invalid - trusting the "geometrically
+   * valid" side instead would silently
+   * discard the very side the user just
+   * deliberately set, mirroring the
+   * handle onto the wrong side.
+   */
+  if (preferredNode) {
+    if (preferredNode === segment.endNode) {
+      preserveEnd()
+    } else {
+      preserveStart()
+    }
+
+    return
+  }
+
+  /*
+   * No explicit preference (the general
+   * pass): trust whichever side is
+   * geometrically valid, since neither is
+   * more "recent" than the other.
+   */
+  if (startInvalid && !endInvalid) {
+    preserveEnd()
+  } else if (endInvalid && !startInvalid) {
+    preserveStart()
+  }
+}
+
 function constrainSegment(segment, directions) {
   if (!segment.controlPoint) {
     return
@@ -282,26 +530,11 @@ function constrainSegment(segment, directions) {
     segment.endNode.smooth === 'smooth' &&
     directions.has(segment.endNode)
 
-  /*
-   * Both nodes smooth:
-   *
-   * The two tangents intersect at T. T is the
-   * segment's shared tangent intersection point.
-   */
   if (startSmooth && endSmooth) {
-    const point = intersectLines(
-      segment.startNode,
-      directions.get(segment.startNode),
-      segment.endNode,
-      directions.get(segment.endNode)
+    resolveBothSmoothSegment(
+      segment,
+      directions
     )
-
-    if (point) {
-      setPoint(
-        segment.controlPoint,
-        point
-      )
-    }
 
     return
   }
@@ -340,6 +573,52 @@ function constrainSegment(segment, directions) {
   }
 }
 
+/*
+ * If either end of the dragged handle's
+ * own segment is a mixed smooth node
+ * (its direction fixed by an adjacent
+ * line), the handle can't be dragged
+ * off that line: project it back onto
+ * the fixed direction, preserving only
+ * the distance the user dragged along
+ * it.
+ */
+function clampMovedHandle(
+  segments,
+  path,
+  changedSegment,
+  movedPoint
+) {
+  const nodes = [
+    changedSegment.startNode,
+    changedSegment.endNode
+  ]
+
+  nodes.forEach(node => {
+    if (node.smooth !== 'smooth') {
+      return
+    }
+
+    const fixed = getMixedNeighborDirection(
+      segments,
+      path,
+      node
+    )
+
+    if (!fixed) {
+      return
+    }
+
+    const relative = sub(movedPoint, node)
+    const projected = dot(relative, fixed)
+
+    setPoint(
+      movedPoint,
+      add(node, mul(fixed, projected))
+    )
+  })
+}
+
 function constrainMovedHandle(
   segments,
   path,
@@ -351,6 +630,45 @@ function constrainMovedHandle(
   )
 
   if (!changedSegment) {
+    return
+  }
+
+  clampMovedHandle(
+    segments,
+    path,
+    changedSegment,
+    movedPoint
+  )
+
+  /*
+   * If the handle sits right on top of
+   * one of its own segment's nodes (e.g.
+   * snapped there), the direction implied
+   * at the OTHER node is just an artifact
+   * of that coincidence, not a deliberate
+   * tangent. Don't let it overwrite a
+   * persisted smoothDirection with
+   * nonsense - skip until the handle
+   * moves to a sane position again.
+   */
+  const chordLength = length(
+    sub(
+      changedSegment.endNode,
+      changedSegment.startNode
+    )
+  )
+
+  const minDistance =
+    MIN_HANDLE_DISTANCE_FACTOR * chordLength
+
+  if (
+    length(
+      sub(movedPoint, changedSegment.startNode)
+    ) < minDistance ||
+    length(
+      sub(movedPoint, changedSegment.endNode)
+    ) < minDistance
+  ) {
     return
   }
 
@@ -395,6 +713,14 @@ function constrainMovedHandle(
       return
     }
 
+    /*
+     * The user just dragged this handle
+     * directly: that's a deliberate
+     * update to this node's persisted
+     * tangent direction.
+     */
+    node.smoothDirection = direction
+
     const {
       incoming,
       outgoing
@@ -421,44 +747,99 @@ function constrainMovedHandle(
         ? otherSegment.endNode
         : otherSegment.startNode
 
-    let farDirection
-
-    if (otherSegment.startNode === farNode) {
-      farDirection = normalize(
-        sub(
-          otherSegment.controlPoint,
-          farNode
-        )
-      )
-    } else {
-      farDirection = normalize(
-        sub(
-          farNode,
-          otherSegment.controlPoint
-        )
-      )
+    /*
+     * Read the far node's own persisted
+     * (or mixed) direction here too,
+     * instead of re-deriving it ad hoc
+     * from its current handle - that
+     * duplicate logic could disagree with
+     * getNodeDirection and drag the
+     * intersection to a degenerate point.
+     */
+    if (farNode.smooth !== 'smooth') {
+      return
     }
+
+    const farDirection = getNodeDirection(
+      segments,
+      path,
+      farNode
+    )
 
     if (!farDirection) {
       return
     }
 
-    const point = intersectLines(
-      node,
-      direction,
-      farNode,
-      farDirection
-    )
-
-    if (!point) {
-      return
-    }
-
-    setPoint(
-      otherSegment.controlPoint,
-      point
+    resolveBothSmoothSegment(
+      otherSegment,
+      new Map([
+        [node, direction],
+        [farNode, farDirection]
+      ]),
+      node
     )
   })
+}
+
+/*
+ * Last-resort safety net, run over every
+ * segment regardless of which rule above
+ * touched it (or didn't): whatever
+ * produced a near-collapsed tangent arm,
+ * fall back to the segment's own
+ * midpoint (the same default a freshly
+ * converted curve gets) rather than risk
+ * degenerate geometry.
+ */
+function enforceMinimumTangentLength(
+  segment
+) {
+  if (!segment.controlPoint) {
+    return
+  }
+
+  const chordLength = length(
+    sub(segment.endNode, segment.startNode)
+  )
+
+  if (chordLength < EPSILON) {
+    return
+  }
+
+  const minDistance =
+    MIN_HANDLE_DISTANCE_FACTOR * chordLength
+
+  const distToStart = length(
+    sub(
+      segment.controlPoint,
+      segment.startNode
+    )
+  )
+
+  const distToEnd = length(
+    sub(
+      segment.controlPoint,
+      segment.endNode
+    )
+  )
+
+  if (
+    distToStart >= minDistance &&
+    distToEnd >= minDistance
+  ) {
+    return
+  }
+
+  setPoint(
+    segment.controlPoint,
+    mul(
+      add(
+        segment.startNode,
+        segment.endNode
+      ),
+      0.5
+    )
+  )
 }
 
 function constrainPath(
@@ -484,6 +865,25 @@ function constrainPath(
         movedPoint
       )
     }
+
+    /*
+     * The segment whose handle was just
+     * dragged is intentionally skipped
+     * here: path.js's reflectHandle
+     * already keeps it from crossing past
+     * a smooth endpoint, and momentarily
+     * sitting right on top of one (e.g.
+     * snapped there) is fine - it
+     * shouldn't get yanked back to the
+     * midpoint for that.
+     */
+    segments.forEach(segment => {
+      if (segment.controlPoint === movedPoint) {
+        return
+      }
+
+      enforceMinimumTangentLength(segment)
+    })
 
     return
   }
@@ -531,6 +931,10 @@ function constrainPath(
       directions
     )
   })
+
+  segments.forEach(
+    enforceMinimumTangentLength
+  )
 }
 
 export class Scene {
