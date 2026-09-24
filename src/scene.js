@@ -956,6 +956,57 @@ export class Scene {
     return path
   }
 
+  /*
+   * Replaces the current content with an
+   * example (see examples/) - plain data:
+   * closed, an optional anisotropy percent
+   * (see the Anisotropy slider) and a list
+   * of points, each optionally smooth and/
+   * or carrying a controlPoint for the
+   * segment starting at it (toward the
+   * next point, wrapping around if
+   * closed).
+   */
+  loadExample(example) {
+    this.paths = []
+    this.verticalStretch = 1 + (example.anisotropy || 0) / 100
+
+    const path = this.addPath()
+
+    example.points.forEach((point) => {
+      path.addNode(point.x, point.y)
+    })
+
+    path.closed = Boolean(example.closed)
+
+    const segmentCount = path.getSegments().length
+
+    for (let i = 0; i < segmentCount; i++) {
+      path.convertSegmentToCurve(i)
+    }
+
+    const segments = path.getSegments()
+
+    segments.forEach((segment, index) => {
+      const controlPoint = example.points[index].controlPoint
+
+      if (controlPoint) {
+        segment.controlPoint.x = controlPoint.x
+        segment.controlPoint.y = controlPoint.y
+      }
+    })
+
+    const nodes = path.nodes.filter(
+      (node) => node.type !== 'offcurve'
+    )
+
+    example.points.forEach((point, index) => {
+      if (point.smooth) {
+        path.toggleSmooth(nodes[index])
+      }
+    })
+  }
+
   speed(p0, p1, p2) {
     return CURVE_MODE[this.curveMode](
       p0,

@@ -4,10 +4,20 @@ import { computeOrigin, screenToLogical } from '../renderer/coordinates.js'
 import { RadioGroup } from './ui/radio-group.js'
 import { Slider } from './ui/slider.js'
 import { Readout } from './ui/readout.js'
+import { Select } from './ui/select.js'
+import * as blankExample from '../examples/blank.js'
+import * as circleExample from '../examples/circle.js'
+import * as opticalCircleExample from '../examples/optical-circle.js'
 
 const DOUBLE_CLICK_TIMEOUT = 400
 const PATH_MODE = 'spline'
 const CURVE_MODE = 'artea'
+
+const EXAMPLES = {
+  blank: blankExample,
+  circle: circleExample,
+  'optical-circle': opticalCircleExample
+}
 
 export class Editor {
   constructor(selector) {
@@ -16,6 +26,10 @@ export class Editor {
 
     this.scene = new Scene(PATH_MODE, CURVE_MODE)
     this.renderer = new Renderer(this.container)
+
+    this.exampleName = 'optical-circle'
+    this.scene.loadExample(EXAMPLES[this.exampleName])
+
     this.currentPath = null
     this.selectedPath = null
     this.selectedNode = null
@@ -53,8 +67,34 @@ export class Editor {
     this.updateUI()
   }
 
+  loadExample(name) {
+    this.exampleName = name
+    this.scene.loadExample(EXAMPLES[name])
+
+    this.currentPath = null
+    this.selectedPath = null
+    this.selectedNode = null
+
+    this.render()
+  }
+
   createUIComponents(panel) {
     return [
+      {
+        component: new Select(panel, {
+          className: 'example-select',
+          options: Object.entries(EXAMPLES).map(([value, example]) => ({
+            value,
+            label: example.name
+          })),
+          onChange: (value) => {
+            this.loadExample(value)
+          }
+        }),
+
+        getValue: () => this.exampleName
+      },
+
       {
         component: new RadioGroup(panel, {
           className: 'tool-toggle',
