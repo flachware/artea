@@ -15,6 +15,10 @@ body {
 .editor {
   width: 100vw;
   height: 100vh;
+
+  &.draw {
+    cursor: crosshair;
+  }
 }
 
 .canvas {

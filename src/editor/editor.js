@@ -1,6 +1,6 @@
 import { Scene } from '../scene.js'
 import { Renderer } from '../renderer/renderer.js'
-import { ToggleButton } from './ui/toggle-button.js'
+import { RadioGroup } from './ui/radio-group.js'
 import { Slider } from './ui/slider.js'
 import { Readout } from './ui/readout.js'
 
@@ -10,54 +10,89 @@ const CURVE_MODE = 'artea'
 
 export class Editor {
   constructor(selector) {
-    const container = document.querySelector(selector)
+    this.container = document.querySelector(selector)
     const panel = document.querySelector('.panel')
 
     this.scene = new Scene(PATH_MODE, CURVE_MODE)
-    this.renderer = new Renderer(container)
+    this.renderer = new Renderer(this.container)
     this.currentPath = null
     this.selectedPath = null
     this.selectedNode = null
     this.lastNodeClick = null
+    this.toolBeforeModifier = null
 
     this.components = panel ? this.createUIComponents(panel) : []
 
-    container.addEventListener('mousedown', (event) => this.handleMouseDown(event))
+    this.setTool('select')
+
+    this.container.addEventListener('mousedown', (event) => this.handleMouseDown(event))
     window.addEventListener('keydown', (event) => this.handleKeyDown(event))
+    window.addEventListener('keyup', (event) => this.handleKeyUp(event))
 
     this.render()
+  }
+
+  setTool(tool) {
+    this.tool = tool
+
+    this.container.classList.toggle('draw', tool === 'draw')
+    this.container.classList.toggle('select', tool === 'select')
+
+    this.updateUI()
   }
 
   createUIComponents(panel) {
     return [
       {
-        component: new ToggleButton(panel, {
-          className: 'spline-toggle',
-          onClick: () => {
-            this.scene.pathMode =
-              this.scene.pathMode === 'curve' ? 'spline' : 'curve'
-
-            this.render()
+        component: new RadioGroup(panel, {
+          className: 'tool-toggle',
+          name: 'tool',
+          options: [
+            { value: 'select', label: 'Select' },
+            { value: 'draw', label: 'Draw' }
+          ],
+          onChange: (value) => {
+            this.setTool(value)
           }
         }),
 
-        getValue: () =>
-          this.scene.pathMode === 'curve' ? 'Spline' : 'Curve'
+        getValue: () => this.tool
       },
 
       {
-        component: new ToggleButton(panel, {
+        component: new RadioGroup(panel, {
           className: 'artea-toggle',
-          onClick: () => {
-            this.scene.curveMode =
-              this.scene.curveMode === 'elliptic' ? 'artea' : 'elliptic'
+          name: 'curve-mode',
+          options: [
+            { value: 'artea', label: 'Artea' },
+            { value: 'elliptic', label: 'Circle' }
+          ],
+          onChange: (value) => {
+            this.scene.curveMode = value
 
             this.render()
           }
         }),
 
-        getValue: () =>
-          this.scene.curveMode === 'elliptic' ? 'Artea' : 'Circle'
+        getValue: () => this.scene.curveMode
+      },
+
+      {
+        component: new RadioGroup(panel, {
+          className: 'spline-toggle',
+          name: 'path-mode',
+          options: [
+            { value: 'spline', label: 'Spline' },
+            { value: 'curve', label: 'Curve' }
+          ],
+          onChange: (value) => {
+            this.scene.pathMode = value
+
+            this.render()
+          }
+        }),
+
+        getValue: () => this.scene.pathMode
       },
 
       {
@@ -100,7 +135,7 @@ export class Editor {
   }
 
   handleMouseDown(event) {
-    if (!event.ctrlKey && !event.metaKey) {
+    if (this.tool !== 'draw') {
       this.deselectAll()
       return
     }
@@ -148,6 +183,14 @@ export class Editor {
   }
 
   handleKeyDown(event) {
+    if (
+      (event.key === 'Control' || event.key === 'Meta') &&
+      this.tool !== 'draw'
+    ) {
+      this.toolBeforeModifier = this.tool
+      this.setTool('draw')
+    }
+
     const deltas = {
       ArrowLeft: { x: -1, y: 0 },
       ArrowRight: { x: 1, y: 0 },
@@ -174,6 +217,16 @@ export class Editor {
     this.render()
   }
 
+  handleKeyUp(event) {
+    if (
+      (event.key === 'Control' || event.key === 'Meta') &&
+      this.toolBeforeModifier
+    ) {
+      this.setTool(this.toolBeforeModifier)
+      this.toolBeforeModifier = null
+    }
+  }
+
   isDoubleClick(node) {
     const now = performance.now()
     const isDouble = this.lastNodeClick &&
@@ -198,7 +251,7 @@ export class Editor {
         handle.addEventListener('mousedown', (event) => {
           event.stopPropagation()
 
-          if (index === 0 && path.selected && (event.ctrlKey || event.metaKey)) {
+          if (index === 0 && path.selected && this.tool === 'draw') {
             path.close()
             this.selectNode(path, node)
             this.render()
