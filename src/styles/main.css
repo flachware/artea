@@ -15,15 +15,13 @@ body {
   display: block;
 }
 
-.artea-toggle {
+.panel {
   position: absolute;
   top: 20px;
   right: 20px;
 }
 
-.spline-toggle {
-  position: absolute;
-  top: 40px;
-  right: 20px;
+.info {
+  font-family: monospace;
 }
 

@@ -1,57 +1,48 @@
-import { Scene } from './scene.js'
-import { Renderer } from './renderer/renderer.js'
+import { Scene } from '../scene.js'
+import { Renderer } from '../renderer/renderer.js'
+import { Info } from './ui/info.js'
+import { PathModeToggle } from './ui/path-mode-toggle.js'
+import { CurveModeToggle } from './ui/curve-mode-toggle.js'
 
 const DOUBLE_CLICK_TIMEOUT = 400
 const PATH_MODE = 'spline'
 const CURVE_MODE = 'artea'
 
+/*
+ * UI components mounted into .panel. Each
+ * one is a class taking (container, editor)
+ * and exposing update(editor), called after
+ * every change (see render()). Add further
+ * components here to wire them in.
+ */
+const UI_COMPONENTS = [
+  PathModeToggle,
+  CurveModeToggle,
+  Info
+]
+
 export class Editor {
   constructor(selector) {
     const container = document.querySelector(selector)
+    const panel = document.querySelector('.panel')
 
     this.scene = new Scene(PATH_MODE, CURVE_MODE)
     this.renderer = new Renderer(container)
     this.currentPath = null
     this.selectedNode = null
     this.lastNodeClick = null
-    this.modeButton = document.querySelector('.spline-toggle')
-    this.curveModeButton = document.querySelector('.artea-toggle')
+
+    this.components = panel
+      ? UI_COMPONENTS.map((Component) => new Component(panel, this))
+      : []
 
     container.addEventListener('mousedown', (event) => this.handleMouseDown(event))
 
-    if (this.modeButton) {
-      this.modeButton.addEventListener('click', () => this.togglePathMode())
-      this.updateModeButton()
-    }
-
-    if (this.curveModeButton) {
-      this.curveModeButton.addEventListener('click', () => this.toggleCurveMode())
-      this.updateCurveModeButton()
-    }
-
     this.render()
   }
 
-  togglePathMode() {
-    this.scene.pathMode = this.scene.pathMode === 'curve' ? 'spline' : 'curve'
-
-    this.updateModeButton()
-    this.render()
-  }
-
-  updateModeButton() {
-    this.modeButton.textContent = this.scene.pathMode === 'curve' ? 'Spline' : 'Curve'
-  }
-
-  toggleCurveMode() {
-    this.scene.curveMode = this.scene.curveMode === 'elliptic' ? 'artea' : 'elliptic'
-
-    this.updateCurveModeButton()
-    this.render()
-  }
-
-  updateCurveModeButton() {
-    this.curveModeButton.textContent = this.scene.curveMode === 'elliptic' ? 'Artea' : 'Circle'
+  updateUI() {
+    this.components.forEach((component) => component.update(this))
   }
 
   handleMouseDown(event) {
@@ -166,6 +157,8 @@ export class Editor {
         })
       })
     })
+
+    this.updateUI()
   }
 
   dragNode(path, node, startEvent) {

@@ -1,3 +1,3 @@
-import { Editor } from './editor.js'
+import { Editor } from './editor/editor.js'
 
 new Editor('.editor')
