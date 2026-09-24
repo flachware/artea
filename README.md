@@ -73,7 +73,7 @@ $$
 Solving the superellipse for the optimized parameter $p$ gives:
 
 $$
-p=1-(1-\kappa)r^{3/4}.
+p=1+(\kappa-1)r^{3/4}.
 $$
 
 The inner control points are then:
